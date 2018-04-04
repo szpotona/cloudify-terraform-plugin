@@ -2,7 +2,22 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.3/types.yaml
-  - https://raw.githubusercontent.com/EarthmanT/cfytf/976d7ea6d435b0774668000636e83b2211d89c93/plugin.yaml
+  - plugin.yaml
+
+inputs:
+
+  terraform_path:
+    type: string
+
+  AWS_ACCESS_KEY_ID:
+    type: string
+
+  AWS_SECRET_ACCESS_KEY:
+    type: string
+
+  AWS_DEFAULT_REGION:
+    type: string
+    default: 'us-east-1'
 
 node_templates:
 
@@ -10,4 +25,16 @@ node_templates:
     type: cloudify.nodes.terraform.Module
     properties:
       resource_config:
-        source: blueprints/resources/eip
+        source: blueprints/resources/eip.zip
+        variables:
+          key_name: my_key
+        environment_variables:
+          AWS_ACCESS_KEY_ID: { get_input: AWS_ACCESS_KEY_ID }
+          AWS_SECRET_ACCESS_KEY: { get_input: AWS_SECRET_ACCESS_KEY }
+          AWS_DEFAULT_REGION: { get_input: AWS_DEFAULT_REGION }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          inputs:
+            resource_config: { get_property: [ SELF, resource_config ] }
+            terraform_path: { get_input: terraform_path }

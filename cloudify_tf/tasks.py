@@ -13,46 +13,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import zipfile
+
 from cloudify import ctx
-from cloudify.exception import NonRecoverableError
-import subprocess
+from cloudify.exceptions import NonRecoverableError
+from terraform import Terraform
+from utils import update_runtime_properties, unzip_archive
+
+TERRAFORM_PATH = '/usr/bin/terraform'
 
 
-TERRAFORM_COMMAND = 'terraform'
-
-def configure(**kwargs):
+def configure(resource_config, **_):
     """
     Get the TF File and verify that everything is ready.
     """
 
-    # Check that Terraform executable is available.
-    if execute_command(TERRAFORM_COMMAND) is not False:
-    	raise NonRecoverableError('Terraform binary is not in $PATH.')
+    ctx.logger.info('resource_config: {0}'.format(resource_config))
+    ctx.logger.info('_: {0}'.format(_))
 
-    # TODO: Download the Blueprint Resource
-    # TODO: Store the Blueprint Resource in a Temp folder (Use StringIO later).
+    terraform_source_zip = ctx.download_resource(resource_config.get('source'))
+    terraform_source = unzip_archive(terraform_source_zip)
+    update_runtime_properties('terraform_source', terraform_source)
 
+    tf = Terraform(
+        _.get('terraform_path', TERRAFORM_PATH),
+        terraform_source,
+        variables=resource_config.get('variables') or None,
+        environment_variables=resource_config.get('environment_variables') or None
+    )
 
-def execute_command(command):
-
-    ctx.logger.debug('command {0}.'.format(repr(command)))
-
-    subprocess_args = {
-        'args': command,
-        'stdout': subprocess.PIPE,
-        'stderr': subprocess.PIPE
-    }
-
-    ctx.logger.debug('subprocess_args {0}.'.format(subprocess_args))
-
-    process = subprocess.Popen(**subprocess_args)
-    output, error = process.communicate()
-
-    ctx.logger.debug('error: {0} '.format(error))
-    ctx.logger.debug('process.returncode: {0} '.format(process.returncode))
-
-    if process.returncode:
-        ctx.logger.error('Running `{0}` returns error.'.format(repr(command)))
-        return False
-
-    return output
+    init_output = tf.init()
+    ctx.logger.info('terraform init output: {0}'.format(init_output))
+    plan_output = tf.plan()
+    ctx.logger.info('terraform plan output: {0}'.format(plan_output))

@@ -17,12 +17,12 @@
 from setuptools import setup
 
 setup(
-    name='cfytf',
+    name='cloudify-terraform-plugin',
     version='0.1.dev0',
     author='earthmant',
     author_email='trammell@cloudify.co',
     description='Enables Support of Terraform',
-    packages=['cloudify_tf'],
+    packages=['cloudify_tf', 'cloudify_tf/terraform'],
     license='LICENSE',
     install_requires=[
         'cloudify-plugins-common>=3.4.2',
