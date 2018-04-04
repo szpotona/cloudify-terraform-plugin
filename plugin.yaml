@@ -2,9 +2,9 @@ plugins:
 
   tf:
     executor: central_deployment_agent
-    package_name: cfytf
+    package_name: cloudify-terraform-plugin
     package_version: '0.1.dev0'
-    source: https://github.com/earthmant/cfytf/archive/976d7ea6d435b0774668000636e83b2211d89c93.zip
+    source: https://github.com/earthmant/cloudify-terraform-plugin/archive/7fd446f886315351d5189453b06648b14c674848.zip
 
 data_types:
 
@@ -29,3 +29,12 @@ node_types:
           inputs:
             resource_config:
               default: { get_property: [ SELF, resource_config ] }
+        start: {}
+        stop: {}
+        delete: {}
+      cloudify.interfaces.validation:
+        creation: {}
+        deletion: {}
+      cloudify.interfaces.monitoring:
+        start: {}
+        stop: {}

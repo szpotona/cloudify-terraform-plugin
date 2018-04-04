@@ -14,45 +14,27 @@
 # limitations under the License.
 
 from cloudify import ctx
-from cloudify.exception import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError
 import subprocess
 
+TERRAFORM_PATH = '/usr/bin/terraform'
 
-TERRAFORM_COMMAND = 'terraform'
 
-def configure(**kwargs):
+def configure(resource_config, **_):
     """
     Get the TF File and verify that everything is ready.
     """
 
     # Check that Terraform executable is available.
-    if execute_command(TERRAFORM_COMMAND) is not False:
-    	raise NonRecoverableError('Terraform binary is not in $PATH.')
+    terraform_path = _.get('terraform_path', TERRAFORM_PATH)
+    terraform_command_output = subprocess.call([terraform_path])
+    if int(terraform_command_output) != 127:
+        raise NonRecoverableError(
+            '{0} binary does not exist or is not executable.'.format(
+                terraform_path))
 
     # TODO: Download the Blueprint Resource
+    terraform_root_module = resource_config.get('source')
+    ctx.logger.info('Root Module: {0}'.format(terraform_root_module))
+
     # TODO: Store the Blueprint Resource in a Temp folder (Use StringIO later).
-
-
-def execute_command(command):
-
-    ctx.logger.debug('command {0}.'.format(repr(command)))
-
-    subprocess_args = {
-        'args': command,
-        'stdout': subprocess.PIPE,
-        'stderr': subprocess.PIPE
-    }
-
-    ctx.logger.debug('subprocess_args {0}.'.format(subprocess_args))
-
-    process = subprocess.Popen(**subprocess_args)
-    output, error = process.communicate()
-
-    ctx.logger.debug('error: {0} '.format(error))
-    ctx.logger.debug('process.returncode: {0} '.format(process.returncode))
-
-    if process.returncode:
-        ctx.logger.error('Running `{0}` returns error.'.format(repr(command)))
-        return False
-
-    return output

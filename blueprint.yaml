@@ -2,7 +2,7 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.3/types.yaml
-  - https://raw.githubusercontent.com/EarthmanT/cfytf/976d7ea6d435b0774668000636e83b2211d89c93/plugin.yaml
+  - https://raw.githubusercontent.com/EarthmanT/cloudify-terraform-plugin/6787fe05ff7477c67e4ca165042e969a287cae4f/plugin.yaml
 
 node_templates:
 

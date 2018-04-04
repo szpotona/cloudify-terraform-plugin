@@ -17,7 +17,7 @@
 from setuptools import setup
 
 setup(
-    name='cfytf',
+    name='cloudify-terraform-plugin',
     version='0.1.dev0',
     author='earthmant',
     author_email='trammell@cloudify.co',
