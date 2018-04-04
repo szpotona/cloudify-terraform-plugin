@@ -1,0 +1,31 @@
+plugins:
+
+  tf:
+    executor: central_deployment_agent
+    package_name: cfytf
+    package_version: '0.1.dev0'
+    source: https://github.com/earthmant/cfytf/archive/976d7ea6d435b0774668000636e83b2211d89c93.zip
+
+data_types:
+
+  cloudify.types.terraform.RootModule:
+    properties:
+      source:
+        type: string
+        description: The path to a resource packaged relative to the blueprint YAML.
+        required: true
+
+node_types:
+
+  cloudify.nodes.terraform.Module:
+    properties:
+      resource_config:
+        type: cloudify.types.terraform.RootModule
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create: {}
+        configure:
+          implementation: tf.cloudify_tf.tasks.configure
+          inputs:
+            resource_config:
+              default: { get_property: [ SELF, resource_config ] }
