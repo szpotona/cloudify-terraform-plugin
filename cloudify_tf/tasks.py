@@ -13,36 +13,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import zipfile
-
-from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 from terraform import Terraform
-from utils import update_runtime_properties, unzip_archive
+from utils import (
+    delete_runtime_properties,
+    update_runtime_properties,
+    get_terraform_source)
 
-TERRAFORM_PATH = '/usr/bin/terraform'
+ERROR_MESSAGE = 'Failed see log.'
 
 
-def configure(resource_config, **_):
+def init(executable_path, resource_config, **_):
     """
-    Get the TF File and verify that everything is ready.
+    Execute `terraform init`.
     """
-
-    ctx.logger.info('resource_config: {0}'.format(resource_config))
-    ctx.logger.info('_: {0}'.format(_))
-
-    terraform_source_zip = ctx.download_resource(resource_config.get('source'))
-    terraform_source = unzip_archive(terraform_source_zip)
-    update_runtime_properties('terraform_source', terraform_source)
 
     tf = Terraform(
-        _.get('terraform_path', TERRAFORM_PATH),
-        terraform_source,
-        variables=resource_config.get('variables') or None,
-        environment_variables=resource_config.get('environment_variables') or None
-    )
+        executable_path,
+        get_terraform_source(resource_config),
+        variables=resource_config.get('variables'),
+        environment_variables=resource_config.get('environment_variables'))
 
-    init_output = tf.init()
-    ctx.logger.info('terraform init output: {0}'.format(init_output))
-    plan_output = tf.plan()
-    ctx.logger.info('terraform plan output: {0}'.format(plan_output))
+    if not tf.init():
+        raise NonRecoverableError(ERROR_MESSAGE)
+    if not tf.plan():
+        raise NonRecoverableError(ERROR_MESSAGE)
+
+
+def apply(executable_path, resource_config, **_):
+    """
+    Execute `terraform apply`.
+    """
+
+    tf = Terraform(
+        executable_path,
+        get_terraform_source(resource_config),
+        variables=resource_config.get('variables'),
+        environment_variables=resource_config.get('environment_variables'))
+
+    tf_apply = tf.apply()
+    tf_state = tf.state_pull()
+
+    resources = {}
+    for module in tf_state['modules']:
+        resources.update(module.get('resources'))
+    update_runtime_properties('resources', resources)
+
+    if not tf_apply:
+        raise NonRecoverableError(ERROR_MESSAGE)
+
+
+def destroy(executable_path, resource_config, **_):
+    """
+    Execute `terraform destroy`.
+    """
+
+    tf = Terraform(
+        executable_path,
+        get_terraform_source(resource_config),
+        variables=resource_config.get('variables'),
+        environment_variables=resource_config.get('environment_variables'))
+    if not tf.destroy():
+        raise NonRecoverableError(ERROR_MESSAGE)
+    delete_runtime_properties()

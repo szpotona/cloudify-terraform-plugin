@@ -3,42 +3,79 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
+    package_version: '0.1.dev0'
+    source: https://github.com/EarthmanT/cloudify-terraform-plugin/archive/dev.zip
 
 data_types:
+
+  cloudify.types.terraform.Backend:
+    properties:
+      name:
+        type: string
+        description: Some name.
+        required: False
+      options:
+        description: Should be a dictionary of key/values.
+        required: False
 
   cloudify.types.terraform.RootModule:
     properties:
       source:
         type: string
-        description: The path to a resource packaged relative to the blueprint YAML.
+        description: The path to a terraform project archived in zip format relative to the blueprint YAML.
         required: true
+      backend:
+        type: cloudify.types.terraform.Backend
+        description: If a backend is not defined in source, and you want to use a specific backend, define that here.
+        default: {}
       variables:
         description: A dictionary of variables.
-        default: {}
+        required: false
       environment_variables:
         description: A dictionary of environment variables.
-        default: {}
+        required: false
 
 node_types:
 
+  cloudify.nodes.terraform:
+    derived_from: cloudify.nodes.Root
+    properties:
+      executable_path:
+        description: The path to the terraform binary executable.
+        default: /usr/bin/terraform
+
   cloudify.nodes.terraform.Module:
+    derived_from: cloudify.nodes.terraform
     properties:
       resource_config:
         type: cloudify.types.terraform.RootModule
+        required: true
     interfaces:
       cloudify.interfaces.lifecycle:
-        create: {}
-        configure:
-          implementation: tf.cloudify_tf.tasks.configure
-          inputs:
+        create:
+          implementation: tf.cloudify_tf.tasks.init
+          inputs: &terraform_module_inputs
+            executable_path:
+              default: { get_property: [ SELF, executable_path ] }
             resource_config:
               default: { get_property: [ SELF, resource_config ] }
-        start: {}
-        stop: {}
-        delete: {}
-      cloudify.interfaces.validation:
-        creation: {}
-        deletion: {}
-      cloudify.interfaces.monitoring:
-        start: {}
-        stop: {}
+        start:
+          implementation: tf.cloudify_tf.tasks.apply
+          inputs: *terraform_module_inputs
+        delete:
+          implementation: tf.cloudify_tf.tasks.destroy
+          inputs: *terraform_module_inputs
+
+workflows:
+
+  export_resource:
+    mapping: tf.cloudify_tf.workflows.export_resource
+    parameters:
+      node_instance_id:
+        type: string
+        description: The name of the cloudify.nodes.terraform.Module node template that created this resource.
+        required: true
+      resource_name:
+        type: string
+        description: The name of the resource that you want to expose.
+        required: true
