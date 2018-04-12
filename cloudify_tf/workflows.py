@@ -63,68 +63,36 @@ def generate_node_template(node_type,
     return node_template
 
 
-def get_node_instances(_node_instance_id, _client=None):
-
+def generate_relationships(default_target, relationships=None):
     """
-    See: http://docs.getcloudify.org/api/v3.1/#get-node-instance.
-    :param string _node_instance_id: The node instance ID.
-    :param CloudifyClient _client: The authenticated client.
+    Create a list of relationships that will be attached to the node template.
 
-    """
-
-    ctx.logger.debug('Getting the Terraform node instance.')
-
-    _client = _client or get_rest_client()
-    return _client.node_instances.get(_node_instance_id)
-
-
-# TODO: Update docstring.
-def start_deployment_update(
-        blueprint_or_archive_path, application_file_name, _client=None):
-
-    """
-    Executes a deployment update.
-    There is no good documentation on this operation.
-
-    :param string blueprint_path: The path to a blueprint archive.
-    :param CloudifyClient _client: The authenticated client.
+    :param string default_target:
+        The node name of the terraform node template.
+    :param list relationships:
+        Additional properly formed relationships.
 
     """
 
-    ctx.logger.debug('Starting deployment update.')
-    _client = _client or get_rest_client()
-    return _client.deployment_updates.update(
-        ctx.deployment.id,
-        blueprint_or_archive_path,
-        application_file_name,
-        force=True)
+    relationships = relationships or []
+
+    if isinstance(default_target, unicode):
+        default_target = default_target.encode('utf-8')
+
+    # TODO: Only do this if the user has not already done so.
+    default_relationship = {
+        'type': 'cloudify.relationships.contained_in',
+        'target': default_target
+    }
+
+    relationships.insert(0, default_relationship)
+
+    return relationships
 
 
-def get_blueprint(_client=None):
-
-    """
-    See: http://docs.getcloudify.org/api/v3.1/#get-blueprint.
-    See: http://docs.getcloudify.org/api/v3.1/#download-blueprint.
-
-    :param CloudifyClient _client: The authenticated client.
-
-    """
-
-    ctx.logger.debug(
-        'Getting the blueprint filename and the blueprint archive.')
-
-    _client = _client or get_rest_client()
-    work_dir = tempfile.mkdtemp()
-    response = _client.blueprints.get(blueprint_id=ctx.blueprint.id)
-    filename = response['main_file_name']
-    archive_path = _client.blueprints.download(
-        blueprint_id=ctx.blueprint.id,
-        output_file=os.path.join(work_dir, 'archive.tar.gz'))
-    return archive_path, filename
-
-
-# TODO: Break this up into smaller operations.
-def update_blueprint(old_archive_path, blueprint_file, new_node_template):
+def update_blueprint_archive(old_archive_path,
+                             blueprint_file,
+                             new_node_template):
 
     """
     This method takes the old blueprint archive and copies everything over.
@@ -134,7 +102,7 @@ def update_blueprint(old_archive_path, blueprint_file, new_node_template):
 
     Example usage:
     ```
-    update_blueprint(
+    update_blueprint_archive(
         'my.zip',
         'blueprint.yaml',
         {'vm': {'type': 'cloudify.nodes.Compute'}}
@@ -145,7 +113,6 @@ def update_blueprint(old_archive_path, blueprint_file, new_node_template):
     ctx.logger.debug('Updating the blueprint.')
 
     work_dir = os.path.dirname(old_archive_path)
-    # _, new_archive_path = tempfile.mkstemp(dir=work_dir)
 
     if not os.access(old_archive_path, os.R_OK):
         raise NonRecoverableError(
@@ -181,17 +148,6 @@ def update_blueprint(old_archive_path, blueprint_file, new_node_template):
     return new_archive_path
 
 
-def upload_blueprint_update(archive, main_file_name, _client=None):
-    _client = _client or get_rest_client()
-    # TODO: Figure out a better way to do this.
-    blueprints = _client.blueprints.list()
-    new_blueprint_id = '{0}-{1}'.format(
-        ctx.blueprint.id, len(blueprints.items))
-    upload = \
-        _client.blueprints._upload(archive, new_blueprint_id, main_file_name)
-    return upload['id']
-
-
 @workflow
 def export_resource(node_instance_id,
                     resource_name,
@@ -211,13 +167,15 @@ def export_resource(node_instance_id,
 
     """
 
+    cfy_client = get_rest_client()
+
+    node_instance = cfy_client.node_instances.get(node_instance_id)
+
+    # Make sure that strings from args are UTF-8
     if isinstance(resource_name, unicode):
         resource_name = resource_name.encode('utf-8')
-    if isinstance(resource_name, unicode):
+    if isinstance(node_type, unicode):
         node_type = node_type.encode('utf-8')
-
-    # Get the Terraform node instance object.
-    node_instance = get_node_instances(node_instance_id)
 
     # Make sure there are resources to expose.
     if 'resources' not in node_instance.runtime_properties:
@@ -231,41 +189,41 @@ def export_resource(node_instance_id,
     if not resource:
         raise NonRecoverableError(NOT_FOUND.format(resource_name))
 
-    # Prepare a relationship from the new node template to the Terraform node.
-    target_node = node_instance.node_id
-    if isinstance(target_node, unicode):
-        target_node = target_node.encode('utf-8')
-    default_relationship = {
-        'type': 'cloudify.relationships.contained_in',
-        'target': target_node
-    }
-
     # Get a basic node template.
     new_node_template = generate_node_template(
         node_type,
-        relationships=[default_relationship])
+        relationships=generate_relationships(node_instance.node_id))
 
     # Make sure that we provide Compute specific properties if needed.
     if node_type is COMPUTE_TYPE:
-        private_ip = resource['primary']['attributes']['private_ip']
-        if isinstance(private_ip, unicode):
-            private_ip = private_ip.encode('utf-8')
+        if _.get('use_public_ip'):
+            agent_ip = resource['primary']['attributes']['public_ip']
+        else:
+            agent_ip = resource['primary']['attributes']['private_ip']
+        if isinstance(agent_ip, unicode):
+            agent_ip = agent_ip.encode('utf-8')
         new_node_template['properties'] = {
-            'ip': private_ip,
+            'ip': agent_ip,
             'agent_config': {
                 'install_method': 'none',
             }
         }
 
-    blueprint_archive, blueprint_file_name = get_blueprint()
+    blueprint = cfy_client.blueprints.get(blueprint_id=ctx.blueprint.id)
+    blueprint_file_name = blueprint['main_file_name']
+    blueprint_archive = cfy_client.blueprints.download(
+        blueprint_id=ctx.blueprint.id,
+        output_file=os.path.join(tempfile.mkdtemp(), 'archive.tar.gz'))
 
     # Get the blueprint and update it.
     new_archive = \
-        update_blueprint(
+        update_blueprint_archive(
             blueprint_archive,
             blueprint_file_name,
             {resource_name: new_node_template})
 
-    # Update the deployment.
-    start_deployment_update(
-        new_archive, blueprint_file_name)
+    cfy_client.deployment_updates.update(
+        ctx.deployment.id,
+        new_archive,
+        blueprint_file_name,
+        force=True)
