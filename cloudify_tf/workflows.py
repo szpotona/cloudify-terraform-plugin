@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import os
 import StringIO
 import tarfile
@@ -30,6 +31,20 @@ from cloudify.exceptions import NonRecoverableError
 
 COMPUTE_TYPE = 'cloudify.nodes.Compute'
 NOT_FOUND = '{0} not found.'
+AGENT_ATTRIBUTES = \
+    [
+        'install_method',
+        'network',
+        'user',
+        'key',
+    ]
+INSTRINSIC_FUNCTIONS = \
+    [
+        'get_input',
+        'get_secret',
+        'get_attribute',
+        'get_property',
+    ]
 
 
 def generate_node_template(node_type,
@@ -55,7 +70,15 @@ def generate_node_template(node_type,
     relationships = relationships or []
 
     node_template = \
-        {'type': node_type, 'properties': {}, 'relationships': relationships}
+        {
+            'type': node_type,
+            'properties': {
+                'agent_config': {
+                    'install_method': 'none',
+                }
+            },
+            'relationships': relationships
+        }
 
     for property_name, property_value in node_properties.items():
         node_template['properties'][property_name] = property_value
@@ -202,12 +225,18 @@ def export_resource(node_instance_id,
             agent_ip = resource['primary']['attributes']['private_ip']
         if isinstance(agent_ip, unicode):
             agent_ip = agent_ip.encode('utf-8')
-        new_node_template['properties'] = {
-            'ip': agent_ip,
-            'agent_config': {
-                'install_method': 'none',
-            }
-        }
+        new_node_template['properties']['ip'] = agent_ip
+        ctx.logger.info('{0}'.format(new_node_template))
+        for key in AGENT_ATTRIBUTES:
+            val = _.get(key)
+            if not val:
+                continue
+            if isinstance(val, unicode):
+                val = val.encode('utf-8')
+            for fn in INSTRINSIC_FUNCTIONS:
+                if fn in val:
+                    val = ast.literal_eval(val)
+            new_node_template['properties']['agent_config'][key] = val
 
     blueprint = cfy_client.blueprints.get(blueprint_id=ctx.blueprint.id)
     blueprint_file_name = blueprint['main_file_name']

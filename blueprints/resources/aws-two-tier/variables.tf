@@ -15,9 +15,9 @@ variable "aws_region" {
 # Ubuntu Precise 12.04 LTS (x64)
 variable "aws_amis" {
   default = {
-    eu-west-1 = "ami-674cbc1e"
-    us-east-1 = "ami-1d4e7a66"
-    us-west-1 = "ami-969ab1f6"
-    us-west-2 = "ami-8803e0f0"
+    eu-west-1 = "ami-38708b45"
+    us-east-1 = "ami-ee6f5e8b"
+    us-west-1 = "ami-fb32279b"
+    us-west-2 = "ami-a523b4dd"
   }
 }

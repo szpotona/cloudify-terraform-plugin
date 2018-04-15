@@ -1,5 +1,37 @@
 
-Compress the /blueprints/resources/eip directory in a zip in the same folder and execute:
+# Cloudify Terraform Plugin
+
+Package a Terraform Project as a Cloudify Node Type
+
+
+## Pre-install
+
+Compress the /blueprints/resources/aws-two-tier directory in a zip in the same folder:
+
+
+## Manager Installation
+
+```
+deploymentid=tf
+cfy blueprints upload \
+    earthmant/terraform-integration/blueprint.yaml \
+    -b deploymentid;
+cfy deployments create \
+    -b deploymentid --skip-plugins-validation;
+cfy executions start install -vv \
+    -d deploymentid;
+cfy node-instances list -d deploymentid
+```
+
+
+## Update Deployment to Expose Nodes (Manager Only)
+
+```
+cfy executions start export_resource -vv -d deploymentid -p resource_name=aws_instance.web -p node_instance_id=aws_two_tier_example_XXXXX
+```
+
+
+## Local Installation
 
 ```shell
 cfy install -vv \
@@ -11,15 +43,16 @@ cfy install -vv \
 cfy node-inst -b terraform-integration;
 ```
 
-Todo:
 
-  * Consider changing the delivery method of the terraform templates. These should not need to be zips. Unfortunately, today that is all that download resource accepts.
-  * Store Compute types in a special object.
-  * Figure out some way to export compute types, for example running a post-install deployment update to add new nodes representing VMs.
-  * Create a Terraform Backend Service. Publish it as a plugin node type that can be included in a blueprint.
-  * Enable exporting a resource from Terraform CLI to a deployment.
+## Uninstall 
 
-Plugin Changes for testing:
+```
+cfy uninstall deploymentid --allow-custom-parameters -p ignore_failure=true
+```
+
+
+## Development and Testing on a Manager
+
 ```
 flake8 cloudify_tf/
 git add .; git commit -m 'changes'; git log | head -n 1 | awk '{print $2}'
@@ -27,20 +60,15 @@ git add .; git commit -m 'changes'; git log | head -n 1 | awk '{print $2}'
 git add .; git commit -m 'plugin.yaml'; git push; git log | head -n 1 | awk '{print $2}'
 # Add commit to blueprint.yaml
 ```
-Manager Testing:
 
-Execution:
-```
-testid=33
-cfy blueprints upload \
-    earthmant/terraform-integration/blueprint.yaml \
-    -b test-$testid;
-cfy deployments create \
-    -b test-$testid --skip-plugins-validation;
-cfy executions start install -vv \
-    -d test-$testid;
-cfy node-instances list -d test-$testid
-cfy executions start export_resource -vv -d test-$testid -p resource_name=aws_instance.web -p node_instance_id=aws_two_tier_example_XXXXX
-cfy uninstall test-$testid --allow-custom-parameters -p ignore_failure=true
-```
+## Todo
 
+  * Write a special "install_and_expose" workflow for handling applications as part of the blueprint from day 0.
+  * Create a Terraform [Backend Service using HTTP Node Type](https://www.terraform.io/docs/backends/types/http.html).
+    * Package in the plugin w/ a node type.
+    * The service should run as a daemon.
+    * Exposing Terraform resources via Terraform outputs should trigger `execute_resource` workflow on those resources.
+    * This should enable a user to interact with Terraform and Cloudify from Terraform CLI.
+  * Support more packaging methods for `cloudify.nodes.terraform.Module`.
+    * Today we use zip and require the user to pre-package this. It's not good.
+  * Support Multiple Modules.

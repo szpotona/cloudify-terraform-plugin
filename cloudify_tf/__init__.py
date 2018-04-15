@@ -25,8 +25,16 @@ COMPUTE_RESOURCE_TYPES = \
 
 COMPUTE_ATTRIBUTES = \
     [
-         'private_ip',
-         'public_ip',
+        'private_ip',
+        'public_ip',
+    ]
+
+AGENT_ATTRIBUTES = \
+    [
+        'install_method',
+        'network',
+        'user',
+        'key',
     ]
 
 # TODO: Get a better way of setting backends.
