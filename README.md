@@ -6,48 +6,61 @@ Package a Terraform Project as a Cloudify Node Type
 
 ## Pre-install
 
-Compress the /blueprints/resources/aws-two-tier directory in a zip in the same folder:
+Install terraform binary on your Cloudify Manager at /usr/bin/terraform, for example these steps
+
+```shell
+    1  sudo yum install wget unzip
+    2  wget https://releases.hashicorp.com/terraform/0.11.7/terraform_0.11.7_linux_amd64.zip
+    3  unzip terraform_0.11.7_linux_amd64.zip
+    4  sudo cp terraform /usr/bin/
+    5  sudo chmod 775 /usr/bin/terraform 
+    6  sudo chown root:root /usr/bin/terraform 
+```
+
+Compress the blueprints/resources/aws-two-tier directory in a zip in the blueprints/resources directory.
 
 
-## Manager Installation
+## Installation
+
+There are two example blueprints.
+
+  1. A simple "wordpress and terraform" blueprint, `wordpress-blueprint.yaml`.
+  1. A simple "terraform only" blueprint, `blueprint.yaml`.
 
 ```
-deploymentid=tf
+blueprint=wordpress-blueprint.yaml
+deploymentid=terraform
 cfy blueprints upload \
-    earthmant/terraform-integration/blueprint.yaml \
-    -b deploymentid;
+    blueprints/$blueprint \
+    -b $deploymentid;
 cfy deployments create \
-    -b deploymentid --skip-plugins-validation;
+    -b $deploymentid --skip-plugins-validation;
 cfy executions start install -vv \
-    -d deploymentid;
-cfy node-instances list -d deploymentid
+    -d $deploymentid;
+cfy node-instances list -d $deploymentid
 ```
 
 
 ## Update Deployment to Expose Nodes (Manager Only)
 
-```
-cfy executions start export_resource -vv -d deploymentid -p resource_name=aws_instance.web -p node_instance_id=aws_two_tier_example_XXXXX
-```
-
-
-## Local Installation
+If you selected the simple blueprint, you can expose the aws_instance.web node using the following workflow:
 
 ```shell
-cfy install -vv \
-    -i terraform_path=/PATH/TO/terraform \
-    -i AWS_ACCESS_KEY_ID=... \
-    -i AWS_SECRET_ACCESS_KEY=... \
-    -i public_key_path=/PATH/TO/.ssh/id_rsa.pub \
-    terraform-integration/blueprint.yaml;
-cfy node-inst -b terraform-integration;
+cfy executions start export_resource -vv -d $deploymentid -p resource_name=aws_instance.web -p node_instance_id=aws_two_tier_example_XXXXX
 ```
+
+If you want to expose and install an agent, you can do so like this:
+
+```shell
+cfy executions start export_resource -vv -d $deploymentid --allow-custom-parameters -p resource_name=aws_instance.web -p install_method=remote -p user=ubuntu -p key='{ "get_secret": "agent_key_private" }' -p network=external -p use_public_ip=1 -p node_instance_id=aws_two_tier_example_XXXXX
+```
+
 
 
 ## Uninstall 
 
 ```
-cfy uninstall deploymentid --allow-custom-parameters -p ignore_failure=true
+cfy uninstall $deploymentid --allow-custom-parameters -p ignore_failure=true
 ```
 
 
@@ -63,7 +76,6 @@ git add .; git commit -m 'plugin.yaml'; git push; git log | head -n 1 | awk '{pr
 
 ## Todo
 
-  * Write a special "install_and_expose" workflow for handling applications as part of the blueprint from day 0.
   * Create a Terraform [Backend Service using HTTP Node Type](https://www.terraform.io/docs/backends/types/http.html).
     * Package in the plugin w/ a node type.
     * The service should run as a daemon.

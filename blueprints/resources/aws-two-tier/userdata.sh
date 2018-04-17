@@ -1,3 +1,5 @@
 #!/bin/bash -v
-apt-get update -y
-apt-get install -y nginx > /tmp/nginx.log
+
+sudo usermod -aG docker ubuntu
+sudo apt-get install curl
+curl -fsSL https://get.docker.com/ | sh

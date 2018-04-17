@@ -52,4 +52,4 @@ node_templates:
           aws_region: { get_input: AWS_DEFAULT_REGION }
           key_name: terraform
           public_key: { get_input: public_key }
-        source: blueprints/resources/aws-two-tier.zip
+        source: resources/aws-two-tier.zip
