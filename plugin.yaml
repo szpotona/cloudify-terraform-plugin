@@ -3,8 +3,8 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.1.dev1'
-    source: https://github.com/EarthmanT/cloudify-terraform-plugin/archive/dev1.zip
+    package_version: '0.1.dev2'
+    source: https://github.com/EarthmanT/cloudify-terraform-plugin/archive/dev2.zip
 
 data_types:
 
@@ -59,6 +59,9 @@ node_types:
               default: { get_property: [ SELF, executable_path ] }
             resource_config:
               default: { get_property: [ SELF, resource_config ] }
+        configure:
+          implementation: tf.cloudify_tf.tasks.state_pull
+          inputs: *terraform_module_inputs
         start:
           implementation: tf.cloudify_tf.tasks.apply
           inputs: *terraform_module_inputs

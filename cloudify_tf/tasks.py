@@ -63,6 +63,27 @@ def apply(executable_path, resource_config, **_):
         raise NonRecoverableError(ERROR_MESSAGE)
 
 
+def state_pull(executable_path, resource_config, **_):
+    """
+    Execute `terraform apply`.
+    """
+
+    tf = Terraform(
+        executable_path,
+        get_terraform_source(resource_config),
+        variables=resource_config.get('variables'),
+        environment_variables=resource_config.get('environment_variables'))
+
+    tf.refresh()
+
+    tf_state = tf.state_pull()
+
+    resources = {}
+    for module in tf_state['modules']:
+        resources.update(module.get('resources'))
+    update_runtime_properties('resources', resources)
+
+
 def destroy(executable_path, resource_config, **_):
     """
     Execute `terraform destroy`.

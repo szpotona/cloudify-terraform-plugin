@@ -9,7 +9,7 @@ Package a Terraform Project as a Cloudify Node Type
 Install terraform binary on your Cloudify Manager at /usr/bin/terraform, for example these steps
 
 ```shell
-    1  sudo yum install wget unzip
+    1  sudo yum install -y wget unzip
     2  wget https://releases.hashicorp.com/terraform/0.11.7/terraform_0.11.7_linux_amd64.zip
     3  unzip terraform_0.11.7_linux_amd64.zip
     4  sudo cp terraform /usr/bin/
@@ -38,6 +38,15 @@ cfy deployments create \
 cfy executions start install -vv \
     -d $deploymentid;
 cfy node-instances list -d $deploymentid
+```
+
+
+## Refresh a state and store it
+
+If a state has changed and you want to store it, you can run like this:
+
+```shell
+cfy executions start execute_operation -d $deploymentid -p operation='cloudify.interfaces.lifecycle.configure' -p node_instance_ids='["aws_two_tier_example_XXXXXX"]'
 ```
 
 

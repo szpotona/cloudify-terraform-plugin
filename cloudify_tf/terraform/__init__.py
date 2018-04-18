@@ -134,3 +134,9 @@ class Terraform(object):
             # This return value is expected by the method that call this.
             return {'modules': []}
         return json.loads(pulled_state)
+
+    def refresh(self):
+        _command = '{0} refresh'.format(self.binary_path)
+        if len(self.variables_list):
+            _command = _command + ' ' + ' '.join(self.variables_list)
+        return self.execute(_command)
