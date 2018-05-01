@@ -3,8 +3,8 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.1.dev2'
-    source: https://github.com/EarthmanT/cloudify-terraform-plugin/archive/dev2.zip
+    package_version: '0.1'
+    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/master.zip
 
 data_types:
 

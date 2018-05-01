@@ -18,7 +18,7 @@ from setuptools import setup
 
 setup(
     name='cloudify-terraform-plugin',
-    version='0.1.dev2',
+    version='0.1',
     author='earthmant',
     author_email='trammell@cloudify.co',
     description='Enables Support of Terraform',
