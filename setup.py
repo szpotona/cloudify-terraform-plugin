@@ -18,14 +18,14 @@ from setuptools import setup
 
 setup(
     name='cloudify-terraform-plugin',
-    version='0.1',
-    author='earthmant',
-    author_email='trammell@cloudify.co',
+    version='0.2',
+    author='Cloudify',
+    author_email='hello@cloudify.co',
     description='Enables Support of Terraform',
     packages=['cloudify_tf', 'cloudify_tf/terraform'],
     license='LICENSE',
     install_requires=[
-        'cloudify-plugins-common>=4.3',
-        'pyyaml',
+        'cloudify-common>=4.5.5',
+        'pyyaml==3.10',
     ]
 )

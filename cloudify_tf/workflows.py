@@ -38,7 +38,7 @@ AGENT_ATTRIBUTES = \
         'user',
         'key',
     ]
-INSTRINSIC_FUNCTIONS = \
+INTRINSIC_FUNCTIONS = \
     [
         'get_input',
         'get_secret',
@@ -233,7 +233,7 @@ def export_resource(node_instance_id,
                 continue
             if isinstance(val, unicode):
                 val = val.encode('utf-8')
-            for fn in INSTRINSIC_FUNCTIONS:
+            for fn in INTRINSIC_FUNCTIONS:
                 if fn in val:
                     val = ast.literal_eval(val)
             new_node_template['properties']['agent_config'][key] = val
