@@ -1,13 +1,11 @@
 plugins:
-
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.1'
-    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/master.zip
+    package_version: '0.2'
+    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.2.zip
 
 data_types:
-
   cloudify.types.terraform.Backend:
     properties:
       name:
@@ -36,9 +34,8 @@ data_types:
         required: false
 
 node_types:
-
   cloudify.nodes.terraform:
-    derived_from: cloudify.nodes.Root
+    derived_from: cloudify.nodes.SoftwareComponent
     properties:
       executable_path:
         description: The path to the terraform binary executable.
@@ -70,7 +67,6 @@ node_types:
           inputs: *terraform_module_inputs
 
 workflows:
-
   export_resource:
     mapping: tf.cloudify_tf.workflows.export_resource
     parameters:

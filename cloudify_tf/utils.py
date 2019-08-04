@@ -14,25 +14,23 @@
 # limitations under the License.
 
 import tempfile
+import threading
 import zipfile
 import os
+import StringIO
 
-from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 
 from . import COMPUTE_ATTRIBUTES, COMPUTE_RESOURCE_TYPES, TERRAFORM_BACKEND
 
 
-def delete_runtime_properties():
+def delete_runtime_properties(ctx):
     for op in ctx.instance.runtime_properties['operation_keys']:
         for prop in ctx.instance.runtime_properties['operation_keys'][op]:
-            try:
-                del ctx.instance.runtime_properties[prop]
-            except IndexError as e:
-                ctx.logger.error(str(e))
+            ctx.instance.runtime_properties.pop(prop, None)
 
 
-def update_runtime_properties(_key, _value, operation='any'):
+def update_runtime_properties(ctx, _key, _value, operation='any'):
     """
     We want to be good about deleting keys during uninstallation.
     So we track, which keys were added in which operation.
@@ -55,10 +53,8 @@ def update_runtime_properties(_key, _value, operation='any'):
     # Assign the runtime property
     ctx.instance.runtime_properties[_key] = _value
 
-    return
 
-
-def unzip_archive(archive_path, **_):
+def unzip_archive(ctx, archive_path, **_):
     """
     Unzip a zip archive.
     """
@@ -67,11 +63,11 @@ def unzip_archive(archive_path, **_):
     # Create a zip archive object.
     # Extract the object.
     directory_to_extract_to = tempfile.mkdtemp()
-    zip_ref = zipfile.ZipFile(archive_path, 'r')
-    zip_ref.extractall(directory_to_extract_to)
-    zip_ref.close()
+    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+        zip_ref.extractall(directory_to_extract_to)
 
     update_runtime_properties(
+        ctx,
         'directory_to_extract_to',
         directory_to_extract_to)
     unzipped_work_directory = os.path.join(
@@ -98,14 +94,15 @@ def clean_strings(string):
     return string
 
 
-def get_terraform_source(_resource_config):
+def get_terraform_source(ctx, _resource_config):
     source = ctx.instance.runtime_properties.get('terraform_source')
     if not source:
         # TODO: Use other sources than a zip file packaged with the blueprint.
         terraform_source_zip = \
             ctx.download_resource(_resource_config.get('source'))
-        source = unzip_archive(terraform_source_zip)
+        source = unzip_archive(ctx, terraform_source_zip)
     update_runtime_properties(
+        ctx,
         'terraform_source',
         source)
     backend = _resource_config.get('backend')
@@ -151,3 +148,47 @@ def create_backend_string(name, options):
         option_string += '    %s = %s\n' % (option_name, option_value)
     backed_block = TERRAFORM_BACKEND % (name, option_string)
     return 'terraform {\n%s\n}' % backed_block
+
+
+# Stolen from the script plugin, until this class
+# moves to a utils module in cloudify-common.
+class OutputConsumer(object):
+    def __init__(self, out):
+        self.out = out
+        self.consumer = threading.Thread(target=self.consume_output)
+        self.consumer.daemon = True
+
+    def consume_output(self):
+        for line in self.out:
+            self.handle_line(line)
+        self.out.close()
+
+    def handle_line(self, line):
+        raise NotImplementedError("Must be implemented by subclass")
+
+    def join(self):
+        self.consumer.join()
+
+
+class LoggingOutputConsumer(OutputConsumer):
+    def __init__(self, out, logger, prefix):
+        OutputConsumer.__init__(self, out)
+        self.logger = logger
+        self.prefix = prefix
+        self.consumer.start()
+
+    def handle_line(self, line):
+        self.logger.info("%s%s", self.prefix, line.rstrip('\n'))
+
+
+class CapturingOutputConsumer(OutputConsumer):
+    def __init__(self, out):
+        OutputConsumer.__init__(self, out)
+        self.buffer = StringIO.StringIO()
+        self.consumer.start()
+
+    def handle_line(self, line):
+        self.buffer.write(line)
+
+    def get_buffer(self):
+        return self.buffer
