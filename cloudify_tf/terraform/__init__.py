@@ -107,7 +107,7 @@ class Terraform(object):
         return self.execute(self._tf_command(['version']), True)
 
     def init(self, additional_args=None):
-        command = self._tf_command(['init'])
+        command = self._tf_command(['init', '-no-color'])
         if additional_args:
             command.extend(additional_args)
         return self.execute(command)
@@ -118,7 +118,7 @@ class Terraform(object):
         return self.execute(command)
 
     def plan(self):
-        command = self._tf_command(['plan'])
+        command = self._tf_command(['plan', '-no-color'])
         command.extend(self.variables_list)
         return self.execute(command)
 
