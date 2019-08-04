@@ -29,9 +29,11 @@ data_types:
       variables:
         description: A dictionary of variables.
         required: false
+        default: {}
       environment_variables:
         description: A dictionary of environment variables.
         required: false
+        default: {}
 
 node_types:
   cloudify.nodes.terraform:

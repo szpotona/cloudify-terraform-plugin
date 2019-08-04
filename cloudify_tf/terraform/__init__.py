@@ -25,7 +25,6 @@ from ..utils import (clean_strings,
 class Terraform(object):
     # TODO: Rework this to put the execute method in its own module.
     # TODO: After you do that, move all the SSH commands to the tasks module.
-
     def __init__(self,
                  logger,
                  binary_path,
@@ -37,31 +36,34 @@ class Terraform(object):
         self.root_module = root_module
         self.logger = logger
 
-        if isinstance(environment_variables, dict):
+        if not isinstance(environment_variables, dict):
+            raise Exception(
+                "Unexpected type for environment variables (should be a "
+                "dict): {0}".format(type(
+                    environment_variables)))
+
+        if not isinstance(variables, dict):
+            raise Exception(
+                "Unexpected type for variables (should be a "
+                "dict): {0}".format(type(
+                    variables)))
+
+        if environment_variables:
             execution_env = os.environ.copy()
             for ev_key, ev_val in environment_variables.items():
                 ev_key = clean_strings(ev_key)
                 ev_val = clean_strings(ev_val)
                 execution_env[ev_key] = ev_val
             self.env = execution_env
-        elif environment_variables is not None:
-            raise Exception(
-                "Unexpected type (should be a dict): {0}".format(type(
-                    environment_variables)))
         else:
             self.env = None
 
         self.variables_list = []
-        if isinstance(variables, dict):
-            for var_key, var_val in variables.items():
-                var_key = clean_strings(var_key)
-                var_val = clean_strings(var_val)
-                self.variables_list.extend(["-var", "{0}={1}".format(
-                    var_key, var_val)])
-
-        # Check that we can do any work at all.
-        if not self.version():
-            raise RuntimeError('Terraform is not installed.')
+        for var_key, var_val in variables.items():
+            var_key = clean_strings(var_key)
+            var_val = clean_strings(var_val)
+            self.variables_list.extend(["-var", "{0}={1}".format(
+                var_key, var_val)])
 
     def execute(self, command, return_output=False):
         additional_args = {}

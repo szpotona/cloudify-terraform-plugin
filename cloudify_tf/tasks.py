@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 
 from functools import wraps
@@ -34,6 +35,11 @@ def with_terraform(func):
         ctx = kwargs['ctx']
         resource_config = kwargs['resource_config']
         executable_path = kwargs['executable_path']
+        if not os.path.exists(executable_path):
+            raise NonRecoverableError(
+                "Terraform's executable not found in {0}. Please set the "
+                "'executable_path' property accordingly.".format(
+                    executable_path))
         tf = Terraform(
             ctx.logger,
             executable_path,
