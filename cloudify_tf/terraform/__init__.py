@@ -16,6 +16,9 @@
 import json
 import os
 import subprocess
+import tempfile
+
+from contextlib import contextmanager
 
 from ..utils import (clean_strings,
                      CapturingOutputConsumer,
@@ -58,12 +61,7 @@ class Terraform(object):
         else:
             self.env = None
 
-        self.variables_list = []
-        for var_key, var_val in variables.items():
-            var_key = clean_strings(var_key)
-            var_val = clean_strings(var_val)
-            self.variables_list.extend(["-var", "{0}={1}".format(
-                var_key, var_val)])
+        self.variables = variables
 
     def execute(self, command, return_output=False):
         additional_args = {}
@@ -105,6 +103,15 @@ class Terraform(object):
         cmd.extend(args)
         return cmd
 
+    @contextmanager
+    def _vars_file(self, command):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            json.dump(self.variables, f)
+            f.close()
+            command.extend(['-var-file', f.name])
+            yield
+        os.remove(f.name)
+
     def version(self):
         return self.execute(self._tf_command(['version']), True)
 
@@ -116,18 +123,18 @@ class Terraform(object):
 
     def destroy(self):
         command = self._tf_command(['destroy', '-auto-approve', '-no-color'])
-        command.extend(self.variables_list)
-        return self.execute(command)
+        with self._vars_file(command):
+            return self.execute(command)
 
     def plan(self):
         command = self._tf_command(['plan', '-no-color'])
-        command.extend(self.variables_list)
-        return self.execute(command)
+        with self._vars_file(command):
+            return self.execute(command)
 
     def apply(self):
         command = self._tf_command(['apply', '-auto-approve', '-no-color'])
-        command.extend(self.variables_list)
-        return self.execute(command)
+        with self._vars_file(command):
+            return self.execute(command)
 
     def graph(self):
         command = self._tf_command(['graph'])
@@ -136,14 +143,12 @@ class Terraform(object):
     def state_pull(self):
         command = self._tf_command(['state', 'pull'])
         pulled_state = self.execute(command, True)
-        if not pulled_state:
-            # Essentially, we are talking about a failure somewhere.
-            # But for now, we'll just not store any data.
-            # This return value is expected by the method that call this.
-            return {'modules': []}
+        # If we got here, then the "state pull" return code must
+        # be zero, and pulled_state actually contains a parse-able
+        # JSON.
         return json.loads(pulled_state)
 
     def refresh(self):
         command = self._tf_command(['refresh', '-no-color'])
-        command.extend(self.variables_list)
-        return self.execute(command)
+        with self._vars_file(command):
+            return self.execute(command)

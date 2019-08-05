@@ -33,8 +33,8 @@ def with_terraform(func):
     @wraps(func)
     def f(*args, **kwargs):
         ctx = kwargs['ctx']
-        resource_config = kwargs['resource_config']
-        executable_path = kwargs['executable_path']
+        resource_config = ctx.node.properties['resource_config']
+        executable_path = ctx.node.properties['executable_path']
         if not os.path.exists(executable_path):
             raise NonRecoverableError(
                 "Terraform's executable not found in {0}. Please set the "

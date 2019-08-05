@@ -2,8 +2,8 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.2'
-    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.2.zip
+    package_version: '0.3'
+    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.3.zip
 
 data_types:
   cloudify.types.terraform.Backend:
@@ -53,20 +53,15 @@ node_types:
       cloudify.interfaces.lifecycle:
         create:
           implementation: tf.cloudify_tf.tasks.init
-          inputs: &terraform_module_inputs
-            executable_path:
-              default: { get_property: [ SELF, executable_path ] }
-            resource_config:
-              default: { get_property: [ SELF, resource_config ] }
         configure:
           implementation: tf.cloudify_tf.tasks.state_pull
-          inputs: *terraform_module_inputs
         start:
           implementation: tf.cloudify_tf.tasks.apply
-          inputs: *terraform_module_inputs
         delete:
           implementation: tf.cloudify_tf.tasks.destroy
-          inputs: *terraform_module_inputs
+      terraform:
+        refresh_resources:
+          implementation: tf.cloudify_tf.tasks.state_pull
 
 workflows:
   export_resource:

@@ -146,8 +146,8 @@ def create_backend_string(name, options):
         if isinstance(option_value, basestring):
             option_value = '"%s"' % option_value
         option_string += '    %s = %s\n' % (option_name, option_value)
-    backed_block = TERRAFORM_BACKEND % (name, option_string)
-    return 'terraform {\n%s\n}' % backed_block
+    backend_block = TERRAFORM_BACKEND % (name, option_string)
+    return 'terraform {\n%s\n}' % backend_block
 
 
 # Stolen from the script plugin, until this class
