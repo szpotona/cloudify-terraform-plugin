@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import shutil
 import sys
 
 from functools import wraps
@@ -47,7 +48,7 @@ def with_terraform(func):
             variables=resource_config.get('variables'),
             environment_variables=resource_config.get('environment_variables'))
         kwargs['tf'] = tf
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     return f
 
@@ -122,4 +123,13 @@ def destroy(ctx, tf, **_):
         raise NonRecoverableError(
             "Failed destroying",
             causes=[exception_to_error_cause(ex, tb)])
+
+    terraform_source_root = ctx.instance.runtime_properties.get(
+        'terraform_source_root')
+    if terraform_source_root:
+        ctx.logger.info("Deleting module's directory: %s", terraform_source_root)
+        try:
+            shutil.rmtree(terraform_source_root)
+        except:
+            ctx.logger.exception("Failed deleting module's directory")
     delete_runtime_properties(ctx)
