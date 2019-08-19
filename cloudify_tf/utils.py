@@ -13,17 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 import tempfile
+import base64
 import threading
 import zipfile
 import os
+from io import BytesIO
 import StringIO
+import shutil
 
 import requests
 
-from cloudify.exceptions import NonRecoverableError
+from . import TERRAFORM_BACKEND
 
-from . import COMPUTE_ATTRIBUTES, COMPUTE_RESOURCE_TYPES, TERRAFORM_BACKEND
+
+def unzip_archive(ctx, archive_path, storage_path, **_):
+    """
+    Unzip a zip archive.
+    """
+
+    # Create a temporary directory.
+    # Create a zip archive object.
+    # Extract the object.
+    ctx.logger.info("Extracting %s to %s", archive_path, storage_path)
+    directory_to_extract_to = tempfile.mkdtemp(dir=storage_path)
+    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+        zip_ref.extractall(directory_to_extract_to)
+
+    return directory_to_extract_to
 
 
 def clean_strings(string):
@@ -32,12 +50,19 @@ def clean_strings(string):
     return string
 
 
+@contextmanager
 def get_terraform_source(ctx, _resource_config):
-    source = ctx.instance.runtime_properties.get('terraform_source')
-    if not source:
-        storage_path = ctx.node.properties['storage_path'] or None
-        if storage_path and not os.path.isdir(storage_path):
-            os.makedirs(storage_path)
+    def _file_to_base64(file_path):
+        base64_rep = BytesIO()
+        with open(file_path, 'rb') as f:
+            base64.encode(f, base64_rep)
+        return base64_rep.getvalue()
+
+    # Look for the archive in the runtime properties.
+    encoded_source = ctx.instance.runtime_properties.get('terraform_source')
+    if not encoded_source:
+        # Not found, so we need to prepare a ZIP file of the archive,
+        # and then set it as a runtime property for future operations.
         terraform_source = _resource_config['source']
         split = terraform_source.split('://')
         schema = split[0]
@@ -56,21 +81,55 @@ def get_terraform_source(ctx, _resource_config):
             terraform_source_zip = \
                 ctx.download_resource(terraform_source)
 
-        source = tempfile.mkdtemp(dir=storage_path)
-        with zipfile.ZipFile(terraform_source_zip, 'r') as zip_ref:
-            zip_ref.extractall(source)
+        # By getting here, "terraform_source_zip" is the path to a ZIP
+        # file containing the Terraform files.
+        # We need to encode the contents of the file and set them
+        # as a runtime property.
+        base64_rep = _file_to_base64(terraform_source_zip)
+        ctx.instance.runtime_properties['terraform_source'] = base64_rep
+    else:
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            base64.decode(StringIO.StringIO(encoded_source), f)
+            terraform_source_zip = f.name
 
-        os.remove(terraform_source_zip)
-        ctx.instance.runtime_properties['terraform_source'] = source
+    # By getting here, "terraform_source_zip" is the path to a ZIP file containing
+    # the Terraform files.
+    storage_path = ctx.node.properties['storage_path'] or None
+    if storage_path and not os.path.isdir(storage_path):
+        os.makedirs(storage_path)
+    extracted_source = unzip_archive(ctx, terraform_source_zip, storage_path)
+    os.remove(terraform_source_zip)
+
     backend = _resource_config.get('backend')
     if backend:
         backend_string = create_backend_string(
             backend['name'], backend.get('options', {}))
         backend_file_path = os.path.join(
-            source, '{0}.tf'.format(backend['name']))
+            encoded_source, '{0}.tf'.format(backend['name']))
         with open(backend_file_path, 'w') as infile:
             infile.write(backend_string)
-    return source
+
+    ctx.logger.debug("Extracted Terraform files: %s", extracted_source)
+    yield extracted_source
+
+    ctx.logger.debug("Re-packaging Terraform files from %s", extracted_source)
+    with tempfile.NamedTemporaryFile(suffix=".zip",
+                                     delete=False) as updated_zip:
+        updated_zip.close()
+        with zipfile.ZipFile(
+                updated_zip.name, mode='w',
+                compression=zipfile.ZIP_DEFLATED) as output_file:
+            for dir_name, subdirs, filenames in os.walk(extracted_source):
+                for filename in filenames:
+                    file_to_add = os.path.join(dir_name, filename)
+                    arc_name = file_to_add[len(extracted_source)+1:]
+                    ctx.logger.debug("Adding: %s as %s", file_to_add, arc_name)
+                    output_file.write(file_to_add, arcname=arc_name)
+
+    base64_rep = _file_to_base64(updated_zip.name)
+    ctx.instance.runtime_properties['terraform_source'] = base64_rep
+    os.remove(updated_zip.name)
+    shutil.rmtree(extracted_source)
 
 
 def create_backend_string(name, options):

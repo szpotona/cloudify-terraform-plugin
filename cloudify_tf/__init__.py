@@ -13,30 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COMPUTE_RESOURCE_TYPES = \
-    [
-        'alicloud_instance',
-        'aws_instance',
-        'azurerm_virtual_machine',
-        'google_compute_instance',
-        'opc_compute_instance',
-        'vsphere_virtual_machine',
-    ]
-
-COMPUTE_ATTRIBUTES = \
-    [
-        'private_ip',
-        'public_ip',
-    ]
-
-AGENT_ATTRIBUTES = \
-    [
-        'install_method',
-        'network',
-        'user',
-        'key',
-    ]
-
 # TODO: Get a better way of setting backends.
 TERRAFORM_BACKEND = \
     """

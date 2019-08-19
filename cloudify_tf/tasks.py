@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import os
-import shutil
 import sys
 
 from functools import wraps
@@ -39,15 +38,16 @@ def with_terraform(func):
                 "Terraform's executable not found in {0}. Please set the "
                 "'executable_path' property accordingly.".format(
                     executable_path))
-        tf = Terraform(
-            ctx.logger,
-            executable_path,
-            plugins_dir,
-            get_terraform_source(ctx, resource_config),
-            variables=resource_config.get('variables'),
-            environment_variables=resource_config.get('environment_variables'))
-        kwargs['tf'] = tf
-        return func(*args, **kwargs)
+        with get_terraform_source(ctx, resource_config) as terraform_source:
+            tf = Terraform(
+                ctx.logger,
+                executable_path,
+                plugins_dir,
+                terraform_source,
+                variables=resource_config.get('variables'),
+                environment_variables=resource_config.get('environment_variables'))
+            kwargs['tf'] = tf
+            return func(*args, **kwargs)
 
     return f
 
@@ -122,14 +122,3 @@ def destroy(ctx, tf, **_):
         raise NonRecoverableError(
             "Failed destroying",
             causes=[exception_to_error_cause(ex, tb)])
-
-    terraform_source = ctx.instance.runtime_properties.get(
-        'terraform_source')
-    if terraform_source:
-        ctx.logger.info("Deleting module's directory: %s", terraform_source)
-        try:
-            shutil.rmtree(terraform_source)
-        except:
-            ctx.logger.exception("Failed deleting module's directory")
-        finally:
-            del ctx.instance.runtime_properties['terraform_source']
