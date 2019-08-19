@@ -19,6 +19,8 @@ import zipfile
 import os
 import StringIO
 
+import requests
+
 from cloudify.exceptions import NonRecoverableError
 
 from . import COMPUTE_ATTRIBUTES, COMPUTE_RESOURCE_TYPES, TERRAFORM_BACKEND
@@ -54,7 +56,7 @@ def update_runtime_properties(ctx, _key, _value, operation='any'):
     ctx.instance.runtime_properties[_key] = _value
 
 
-def unzip_archive(ctx, archive_path, **_):
+def unzip_archive(ctx, archive_path, storage_path, **_):
     """
     Unzip a zip archive.
     """
@@ -62,7 +64,7 @@ def unzip_archive(ctx, archive_path, **_):
     # Create a temporary directory.
     # Create a zip archive object.
     # Extract the object.
-    directory_to_extract_to = tempfile.mkdtemp()
+    directory_to_extract_to = tempfile.mkdtemp(dir=storage_path)
     with zipfile.ZipFile(archive_path, 'r') as zip_ref:
         zip_ref.extractall(directory_to_extract_to)
 
@@ -78,7 +80,7 @@ def unzip_archive(ctx, archive_path, **_):
             '{0} is not a valid directory path.'.format(
                 unzipped_work_directory))
 
-    return unzipped_work_directory
+    return directory_to_extract_to, unzipped_work_directory
 
 
 def get_file_list(base_directory):
@@ -97,14 +99,36 @@ def clean_strings(string):
 def get_terraform_source(ctx, _resource_config):
     source = ctx.instance.runtime_properties.get('terraform_source')
     if not source:
-        # TODO: Use other sources than a zip file packaged with the blueprint.
-        terraform_source_zip = \
-            ctx.download_resource(_resource_config.get('source'))
-        source = unzip_archive(ctx, terraform_source_zip)
-    update_runtime_properties(
-        ctx,
-        'terraform_source',
-        source)
+        storage_path = ctx.node.properties['storage_path']
+        if not os.path.isdir(storage_path):
+            os.makedirs(storage_path)
+        terraform_source = _resource_config['source']
+        split = terraform_source.split('://')
+        schema = split[0]
+        if schema in ['http', 'https']:
+            ctx.logger.info("Downloading template from %s", terraform_source)
+            with requests.get(terraform_source, allow_redirects=True,
+                              stream=True) as response:
+                response.raise_for_status()
+                with tempfile.NamedTemporaryFile(
+                        suffix=".zip", delete=False) as source_temp:
+                    terraform_source_zip = source_temp.name
+                    for chunk in response.iter_content(chunk_size=None):
+                        source_temp.write(chunk)
+            ctx.logger.info("Template downloaded successfully")
+        else:
+            terraform_source_zip = \
+                ctx.download_resource(terraform_source)
+        root_dir, source = unzip_archive(ctx, terraform_source_zip, storage_path)
+        os.remove(terraform_source_zip)
+        update_runtime_properties(
+            ctx,
+            'terraform_source_root',
+            root_dir)
+        update_runtime_properties(
+            ctx,
+            'terraform_source',
+            source)
     backend = _resource_config.get('backend')
     if backend:
         backend_string = create_backend_string(

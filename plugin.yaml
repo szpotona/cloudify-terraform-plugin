@@ -2,8 +2,8 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.3'
-    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.3.zip
+    package_version: '0.4'
+    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.4.zip
 
 data_types:
   cloudify.types.terraform.Backend:
@@ -20,7 +20,9 @@ data_types:
     properties:
       source:
         type: string
-        description: The path to a terraform project archived in zip format relative to the blueprint YAML.
+        description: >
+          Path or URL to the ZIP file containing the Terraform project.
+          If this is a path, then it must be relative to the blueprint's root.
         required: true
       backend:
         type: cloudify.types.terraform.Backend
@@ -42,6 +44,11 @@ node_types:
       executable_path:
         description: The path to the terraform binary executable.
         default: /usr/bin/terraform
+      storage_path:
+        description: |
+          Directory to store downloaded Terraform templates. The directory must
+          either already exist and be writable by 'cfyuser', or alternatively
+          be create-able by 'cfyuser'
 
   cloudify.nodes.terraform.Module:
     derived_from: cloudify.nodes.terraform
