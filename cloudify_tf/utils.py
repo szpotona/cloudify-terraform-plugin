@@ -72,15 +72,8 @@ def unzip_archive(ctx, archive_path, storage_path, **_):
         ctx,
         'directory_to_extract_to',
         directory_to_extract_to)
-    unzipped_work_directory = os.path.join(
-        directory_to_extract_to, zip_ref.namelist()[0])
 
-    if not os.path.isdir(unzipped_work_directory):
-        raise NonRecoverableError(
-            '{0} is not a valid directory path.'.format(
-                unzipped_work_directory))
-
-    return directory_to_extract_to, unzipped_work_directory
+    return directory_to_extract_to
 
 
 def get_file_list(base_directory):
@@ -119,12 +112,8 @@ def get_terraform_source(ctx, _resource_config):
         else:
             terraform_source_zip = \
                 ctx.download_resource(terraform_source)
-        root_dir, source = unzip_archive(ctx, terraform_source_zip, storage_path)
+        source = unzip_archive(ctx, terraform_source_zip, storage_path)
         os.remove(terraform_source_zip)
-        update_runtime_properties(
-            ctx,
-            'terraform_source_root',
-            root_dir)
         update_runtime_properties(
             ctx,
             'terraform_source',

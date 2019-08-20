@@ -2,8 +2,8 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.4'
-    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.4.zip
+    package_version: '0.4.1'
+    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.4.1.zip
 
 data_types:
   cloudify.types.terraform.Backend:
@@ -48,7 +48,7 @@ node_types:
         description: |
           Directory to store downloaded Terraform templates. The directory must
           either already exist and be writable by 'cfyuser', or alternatively
-          be create-able by 'cfyuser'
+          be create-able by 'cfyuser'.
 
   cloudify.nodes.terraform.Module:
     derived_from: cloudify.nodes.terraform

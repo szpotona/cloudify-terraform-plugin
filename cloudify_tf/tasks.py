@@ -124,12 +124,12 @@ def destroy(ctx, tf, **_):
             "Failed destroying",
             causes=[exception_to_error_cause(ex, tb)])
 
-    terraform_source_root = ctx.instance.runtime_properties.get(
-        'terraform_source_root')
-    if terraform_source_root:
-        ctx.logger.info("Deleting module's directory: %s", terraform_source_root)
+    terraform_source = ctx.instance.runtime_properties.get(
+        'terraform_source')
+    if terraform_source:
+        ctx.logger.info("Deleting module's directory: %s", terraform_source)
         try:
-            shutil.rmtree(terraform_source_root)
+            shutil.rmtree(terraform_source)
         except:
             ctx.logger.exception("Failed deleting module's directory")
     delete_runtime_properties(ctx)
