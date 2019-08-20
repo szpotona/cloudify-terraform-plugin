@@ -36,6 +36,7 @@ def with_terraform(func):
         ctx = kwargs['ctx']
         resource_config = ctx.node.properties['resource_config']
         executable_path = ctx.node.properties['executable_path']
+        plugins_dir = ctx.node.properties['plugins_dir']
         if not os.path.exists(executable_path):
             raise NonRecoverableError(
                 "Terraform's executable not found in {0}. Please set the "
@@ -44,6 +45,7 @@ def with_terraform(func):
         tf = Terraform(
             ctx.logger,
             executable_path,
+            plugins_dir,
             get_terraform_source(ctx, resource_config),
             variables=resource_config.get('variables'),
             environment_variables=resource_config.get('environment_variables'))

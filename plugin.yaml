@@ -2,8 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.4.1'
-    source: https://github.com/cloudify-incubator/cloudify-terraform-plugin/archive/0.4.1.zip
+    package_version: '0.4.2'
 
 data_types:
   cloudify.types.terraform.Backend:
@@ -42,13 +41,27 @@ node_types:
     derived_from: cloudify.nodes.SoftwareComponent
     properties:
       executable_path:
+        type: string
         description: The path to the terraform binary executable.
         default: /usr/bin/terraform
       storage_path:
+        type: string
         description: |
           Directory to store downloaded Terraform templates. The directory must
           either already exist and be writable by 'cfyuser', or alternatively
           be create-able by 'cfyuser'.
+          The default is an empty string, which prompts the plugin to use the OS
+          temporary directory.
+        default: ''
+      plugins_dir:
+        type: string
+        description: >
+          Location where Terraform plugins are located. If a value is provided, then
+          the Terraform plugin uses '--plugin-dir' with that value, ensuring that
+          no plugins are downloaded on-the-fly, for increased stability.
+          If a value is not provided, plugins will be downloaded on-the-fly. This is
+          not recommended in production environments.
+        default: ''
 
   cloudify.nodes.terraform.Module:
     derived_from: cloudify.nodes.terraform

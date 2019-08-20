@@ -31,11 +31,13 @@ class Terraform(object):
     def __init__(self,
                  logger,
                  binary_path,
+                 plugins_dir,
                  root_module,
                  variables=None,
                  environment_variables=None):
 
         self.binary_path = binary_path
+        self.plugins_dir = plugins_dir
         self.root_module = root_module
         self.logger = logger
 
@@ -68,7 +70,7 @@ class Terraform(object):
         if self.env:
             additional_args['env'] = self.env
 
-        self.logger.info("Running: %s", command)
+        self.logger.info("Running: %s, working directory: %s", command, self.root_module)
 
         process = subprocess.Popen(
             args=command,
@@ -116,7 +118,10 @@ class Terraform(object):
         return self.execute(self._tf_command(['version']), True)
 
     def init(self, additional_args=None):
-        command = self._tf_command(['init', '-no-color'])
+        cmdline = ['init', '-no-color']
+        if self.plugins_dir:
+            cmdline.append('--plugin-dir=%s' % self.plugins_dir)
+        command = self._tf_command(cmdline)
         if additional_args:
             command.extend(additional_args)
         return self.execute(command)

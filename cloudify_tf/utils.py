@@ -92,8 +92,8 @@ def clean_strings(string):
 def get_terraform_source(ctx, _resource_config):
     source = ctx.instance.runtime_properties.get('terraform_source')
     if not source:
-        storage_path = ctx.node.properties['storage_path']
-        if not os.path.isdir(storage_path):
+        storage_path = ctx.node.properties['storage_path'] or None
+        if storage_path and not os.path.isdir(storage_path):
             os.makedirs(storage_path)
         terraform_source = _resource_config['source']
         split = terraform_source.split('://')
