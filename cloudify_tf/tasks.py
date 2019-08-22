@@ -24,10 +24,7 @@ from cloudify.decorators import operation
 from cloudify.utils import exception_to_error_cause
 
 from terraform import Terraform
-from utils import (
-    delete_runtime_properties,
-    update_runtime_properties,
-    get_terraform_source)
+from utils import get_terraform_source
 
 
 def with_terraform(func):
@@ -59,7 +56,7 @@ def refresh_resources_properties(ctx, state):
     resources = {}
     for resource in state['resources']:
         resources[resource['name']] = resource
-    update_runtime_properties(ctx, 'resources', resources)
+    ctx.instance.runtime_properties['resources'] = resources
 
 
 @operation
@@ -134,4 +131,5 @@ def destroy(ctx, tf, **_):
             shutil.rmtree(terraform_source)
         except:
             ctx.logger.exception("Failed deleting module's directory")
-    delete_runtime_properties(ctx)
+        finally:
+            del ctx.instance.runtime_properties['terraform_source']

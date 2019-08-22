@@ -15,7 +15,7 @@
 
 import ast
 import os
-import StringIO
+from io import StringIO
 import tarfile
 import tempfile
 from yaml import load, dump
@@ -157,7 +157,7 @@ def update_blueprint_archive(old_archive_path,
                         member_file_obj.read(), Loader=Loader)
                     blueprint_yaml['node_templates'].update(
                         new_node_template)
-                    member_file_obj = StringIO.StringIO()
+                    member_file_obj = StringIO()
                     member_file_obj.write(
                         dump(blueprint_yaml,
                              Dumper=Dumper,
