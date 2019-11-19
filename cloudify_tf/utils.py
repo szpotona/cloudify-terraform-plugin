@@ -110,26 +110,27 @@ def get_terraform_source(ctx, _resource_config):
             infile.write(backend_string)
 
     ctx.logger.debug("Extracted Terraform files: %s", extracted_source)
-    yield extracted_source
+    try:
+        yield extracted_source
+    finally:
+        ctx.logger.debug("Re-packaging Terraform files from %s", extracted_source)
+        with tempfile.NamedTemporaryFile(suffix=".zip",
+                                         delete=False) as updated_zip:
+            updated_zip.close()
+            with zipfile.ZipFile(
+                    updated_zip.name, mode='w',
+                    compression=zipfile.ZIP_DEFLATED) as output_file:
+                for dir_name, subdirs, filenames in os.walk(extracted_source):
+                    for filename in filenames:
+                        file_to_add = os.path.join(dir_name, filename)
+                        arc_name = file_to_add[len(extracted_source)+1:]
+                        ctx.logger.debug("Adding: %s as %s", file_to_add, arc_name)
+                        output_file.write(file_to_add, arcname=arc_name)
 
-    ctx.logger.debug("Re-packaging Terraform files from %s", extracted_source)
-    with tempfile.NamedTemporaryFile(suffix=".zip",
-                                     delete=False) as updated_zip:
-        updated_zip.close()
-        with zipfile.ZipFile(
-                updated_zip.name, mode='w',
-                compression=zipfile.ZIP_DEFLATED) as output_file:
-            for dir_name, subdirs, filenames in os.walk(extracted_source):
-                for filename in filenames:
-                    file_to_add = os.path.join(dir_name, filename)
-                    arc_name = file_to_add[len(extracted_source)+1:]
-                    ctx.logger.debug("Adding: %s as %s", file_to_add, arc_name)
-                    output_file.write(file_to_add, arcname=arc_name)
-
-    base64_rep = _file_to_base64(updated_zip.name)
-    ctx.instance.runtime_properties['terraform_source'] = base64_rep
-    os.remove(updated_zip.name)
-    shutil.rmtree(extracted_source)
+        base64_rep = _file_to_base64(updated_zip.name)
+        ctx.instance.runtime_properties['terraform_source'] = base64_rep
+        os.remove(updated_zip.name)
+        shutil.rmtree(extracted_source)
 
 
 def create_backend_string(name, options):
