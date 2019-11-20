@@ -82,16 +82,3 @@ node_types:
       terraform:
         refresh_resources:
           implementation: tf.cloudify_tf.tasks.state_pull
-
-workflows:
-  export_resource:
-    mapping: tf.cloudify_tf.workflows.export_resource
-    parameters:
-      node_instance_id:
-        type: string
-        description: The name of the cloudify.nodes.terraform.Module node template that created this resource.
-        required: true
-      resource_name:
-        type: string
-        description: The name of the resource that you want to expose.
-        required: true
