@@ -105,7 +105,7 @@ def get_terraform_source(ctx, _resource_config):
         backend_string = create_backend_string(
             backend['name'], backend.get('options', {}))
         backend_file_path = os.path.join(
-            encoded_source, '{0}.tf'.format(backend['name']))
+            extracted_source, '{0}.tf'.format(backend['name']))
         with open(backend_file_path, 'w') as infile:
             infile.write(backend_string)
 
