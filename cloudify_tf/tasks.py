@@ -54,8 +54,12 @@ def with_terraform(func):
 
 def refresh_resources_properties(ctx, state):
     resources = {}
-    for resource in state['resources']:
+    for resource in state.get('resources', []):
         resources[resource['name']] = resource
+    for module in state.get('modules', []):
+        for resource_name, resource_def in module.get('resources',
+                                                      {}).iteritems():
+            resources[resource_name] = resource_def
     ctx.instance.runtime_properties['resources'] = resources
 
 

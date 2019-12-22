@@ -1,0 +1,3 @@
+0.6:
+    - Fix for backend file path
+    - Added output parse for modules from state pull json
