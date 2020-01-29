@@ -33,6 +33,7 @@ inputs:
 
 node_templates:
 
+  # Install WP using the agent that we install in aws_instance.web
   wordpress:
     type: cloudify.nodes.ApplicationModule
     interfaces:
@@ -43,6 +44,7 @@ node_templates:
     - type: cloudify.relationships.contained_in
       target: aws_instance.web
 
+  # Install Cloudify Agent on the VM from the infrastructure
   aws_instance.web:
     type: cloudify.nodes.Compute
     properties:
@@ -56,6 +58,7 @@ node_templates:
     - type: cloudify.relationships.contained_in
       target: aws_two_tier_example
 
+  # Build an infrastructure in AWS
   aws_two_tier_example:
     type: cloudify.nodes.terraform.Module
     properties:
