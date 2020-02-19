@@ -168,3 +168,5 @@ local-storage/
 *.zip
 *.DS_STORE
 
+# Wagons
+**/*.wgn
