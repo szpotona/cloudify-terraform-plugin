@@ -23,6 +23,7 @@ from io import BytesIO
 from tempfile import mkstemp
 import StringIO
 import shutil
+import subprocess
 import time
 
 import requests
@@ -30,6 +31,41 @@ import requests
 from . import TERRAFORM_BACKEND
 
 TERRAFORM_STATE_FILE="terraform.tfstate"
+
+
+def run_subprocess(command, logger, cwd=None, additional_args=None, return_output=False):
+    if additional_args is None:
+        additional_args = {}
+
+    logger.info("Running: command=%s, cwd=%s, additional_args=%s",
+                command, cwd, additional_args)
+    process = subprocess.Popen(
+        args=command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=None,
+        cwd=cwd,
+        **additional_args)
+
+    if return_output:
+        stdout_consumer = CapturingOutputConsumer(
+            process.stdout)
+    else:
+        stdout_consumer = LoggingOutputConsumer(
+            process.stdout, logger, "<out> ")
+    stderr_consumer = LoggingOutputConsumer(
+        process.stderr, logger, "<err> ")
+
+    return_code = process.wait()
+    stdout_consumer.join()
+    stderr_consumer.join()
+
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, command)
+
+    output = stdout_consumer.buffer.getvalue() if return_output else None
+    logger.info("Returning output:\n%s", output if output is not None else '<None>')
+    return output
 
 
 def unzip_archive(ctx, archive_path, storage_path, **_):

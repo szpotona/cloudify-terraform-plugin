@@ -24,7 +24,8 @@ from cloudify.exceptions import NonRecoverableError
 
 from ..utils import (clean_strings,
                      CapturingOutputConsumer,
-                     LoggingOutputConsumer)
+                     LoggingOutputConsumer,
+                     run_subprocess)
 
 
 class Terraform(object):
@@ -74,33 +75,9 @@ class Terraform(object):
 
         self.logger.info("Running: %s, working directory: %s", command, self.root_module)
 
-        process = subprocess.Popen(
-            args=command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=None,
-            cwd=self.root_module,
-            **additional_args)
-
-        if return_output:
-            stdout_consumer = CapturingOutputConsumer(
-                process.stdout)
-        else:
-            stdout_consumer = LoggingOutputConsumer(
-                process.stdout, self.logger, "<out> ")
-        stderr_consumer = LoggingOutputConsumer(
-            process.stderr, self.logger, "<err> ")
-
-        return_code = process.wait()
-        stdout_consumer.join()
-        stderr_consumer.join()
-
-        if return_code:
-            raise subprocess.CalledProcessError(return_code, command)
-
-        output = stdout_consumer.buffer.getvalue() if return_output else None
-        self.logger.info("Returning output:\n%s", output if output is not None else '<None>')
-        return output
+        return run_subprocess(
+            command, self.logger, self.root_module,
+            additional_args, return_output)
 
     def _tf_command(self, args):
         cmd = [self.binary_path]

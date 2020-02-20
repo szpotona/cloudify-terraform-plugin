@@ -40,6 +40,20 @@ node_types:
   cloudify.nodes.terraform:
     derived_from: cloudify.nodes.SoftwareComponent
     properties:
+      use_existing_resource:
+        type: boolean
+        description: If true, use an existing Terraform installation rather than installing it
+        default: true
+      installation_source:
+        type: string
+        default: ''
+        description: >
+          Location to download the Terraform installation from. Ignored if 'use_existing' is true.
+      plugins:
+        type: list
+        default: []
+        description: >
+          List of plugins to download and install. Ignored if 'use_existing' is true.
       executable_path:
         type: string
         description: The path to the terraform binary executable.
@@ -62,6 +76,12 @@ node_types:
           If a value is not provided, plugins will be downloaded on-the-fly. This is
           not recommended in production environments.
         default: ''
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: tf.cloudify_tf.tasks.install
+        delete:
+          implementation: tf.cloudify_tf.tasks.uninstall
 
   cloudify.nodes.terraform.Module:
     derived_from: cloudify.nodes.terraform
@@ -84,7 +104,7 @@ node_types:
           # Reloads the Terraform template. By default, the template will be
           # read from the last location it was loaded from.
           # This can be overridden by specifying the 'source' input.
-          implementation: tf.cloudify_tf.tasks.reload
+          implementation: tf.cloudify_tf.tasks.reload_template
           inputs:
             source:
               type: string
