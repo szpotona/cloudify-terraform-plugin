@@ -56,28 +56,13 @@ class Terraform(object):
                 "dict): {0}".format(type(
                     variables)))
 
-        if environment_variables:
-            execution_env = os.environ.copy()
-            for ev_key, ev_val in environment_variables.items():
-                ev_key = clean_strings(ev_key)
-                ev_val = clean_strings(ev_val)
-                execution_env[ev_key] = ev_val
-            self.env = execution_env
-        else:
-            self.env = None
-
+        self.env = environment_variables
         self.variables = variables
 
     def execute(self, command, return_output=False):
-        additional_args = {}
-        if self.env:
-            additional_args['env'] = self.env
-
-        self.logger.info("Running: %s, working directory: %s", command, self.root_module)
-
         return run_subprocess(
             command, self.logger, self.root_module,
-            additional_args, return_output)
+            self.env, return_output=return_output)
 
     def _tf_command(self, args):
         cmd = [self.binary_path]

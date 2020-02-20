@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
+import copy
 import tempfile
 import base64
 import threading
@@ -30,22 +31,29 @@ import requests
 
 from . import TERRAFORM_BACKEND
 
-TERRAFORM_STATE_FILE="terraform.tfstate"
+TERRAFORM_STATE_FILE = "terraform.tfstate"
 
 
-def run_subprocess(command, logger, cwd=None, additional_args=None, return_output=False):
+def run_subprocess(command, logger, cwd=None,
+                   additional_env=None,
+                   additional_args=None, return_output=False):
     if additional_args is None:
         additional_args = {}
+    args_to_pass = copy.deepcopy(additional_args)
+    if additional_env:
+        passed_env = args_to_pass.setdefault('env', {})
+        passed_env.update(os.environ)
+        passed_env.update(additional_env)
 
     logger.info("Running: command=%s, cwd=%s, additional_args=%s",
-                command, cwd, additional_args)
+                command, cwd, args_to_pass)
     process = subprocess.Popen(
         args=command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=None,
         cwd=cwd,
-        **additional_args)
+        **args_to_pass)
 
     if return_output:
         stdout_consumer = CapturingOutputConsumer(
