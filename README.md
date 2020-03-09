@@ -85,6 +85,10 @@ git add .; git commit -m 'plugin.yaml'; git push; git log | head -n 1 | awk '{pr
 # Add commit to blueprint.yaml
 ```
 
+## Examples
+
+For official blueprint examples using this Cloudify plugin, please see [Cloudify Community Blueprints Examples](https://github.com/cloudify-community/blueprint-examples/).
+
 ## Todo
 
   * Create a Terraform [Backend Service using HTTP Node Type](https://www.terraform.io/docs/backends/types/http.html).
