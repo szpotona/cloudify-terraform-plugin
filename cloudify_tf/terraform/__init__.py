@@ -15,17 +15,13 @@
 
 import json
 import os
-import subprocess
 import tempfile
 
 from contextlib import contextmanager
 
 from cloudify.exceptions import NonRecoverableError
 
-from ..utils import (clean_strings,
-                     CapturingOutputConsumer,
-                     LoggingOutputConsumer,
-                     run_subprocess)
+from ..utils import run_subprocess
 
 
 class Terraform(object):
@@ -132,11 +128,12 @@ class Terraform(object):
                 "Terraform's executable not found in {0}. Please set the "
                 "'executable_path' property accordingly.".format(
                     executable_path))
+        env_variables = resource_config.get('environment_variables')
         tf = Terraform(
                 ctx.logger,
                 executable_path,
                 plugins_dir,
                 terraform_source,
                 variables=resource_config.get('variables'),
-                environment_variables=resource_config.get('environment_variables'))
+                environment_variables=env_variables)
         return tf

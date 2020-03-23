@@ -27,7 +27,7 @@ from cloudify.utils import exception_to_error_cause
 
 from terraform import Terraform
 from utils import (get_terraform_source, get_terraform_state_file,
-                   move_state_file, run_subprocess, unzip_archive)
+                   move_state_file, run_subprocess)
 
 
 def with_terraform(func):
@@ -127,11 +127,13 @@ def reload_template(ctx, source, destroy_previous, **_):
     try:
         if source:
             state_file = None
-            # if we want to destroy previous: no need to preserve the state file
+            # if we want to destroy previous:
+            # no need to preserve the state file
             # by default the state file will be used if no remote backend
             if destroy_previous:
                 resource_config = ctx.node.properties['resource_config']
-                with get_terraform_source(ctx, resource_config) as terraform_source:
+                with get_terraform_source(ctx, resource_config) as \
+                        terraform_source:
                     tf = Terraform.from_ctx(ctx, terraform_source)
                     tf.destroy()
             else:
@@ -144,7 +146,8 @@ def reload_template(ctx, source, destroy_previous, **_):
             ctx.node.properties['resource_config']['source'] = source
 
             resource_config = ctx.node.properties['resource_config']
-            with get_terraform_source(ctx, resource_config) as terraform_source:
+            with get_terraform_source(ctx, resource_config) as \
+                    terraform_source:
                 tf = Terraform.from_ctx(ctx, terraform_source)
                 tf.init()
                 if state_file:
@@ -185,7 +188,8 @@ def install(ctx, **_):
             for name in zip_ref.namelist():
                 zip_ref.extract(name, target_dir)
                 target_file = os.path.join(target_dir, name)
-                ctx.logger.info("Setting executable permission on %s", target_file)
+                ctx.logger.info("Setting executable permission on %s",
+                                target_file)
                 run_subprocess(
                     ['chmod', 'u+x', target_file],
                     ctx.logger
@@ -197,13 +201,17 @@ def install(ctx, **_):
         if not is_using_existing(ctx):
             if os.path.isfile(executable_path):
                 ctx.logger.info(
-                    "Terraform executable already found at %s; skipping installation of executable",
+                    "Terraform executable already found at %s; " +
+                    "skipping installation of executable",
                     executable_path)
             else:
-                installation_source = ctx.node.properties['installation_source']
-                installation_zip = os.path.join(installation_temp_dir, 'tf.zip')
+                installation_source = \
+                    ctx.node.properties['installation_source']
+                installation_zip = \
+                    os.path.join(installation_temp_dir, 'tf.zip')
 
-                ctx.logger.info("Downloading Terraform from %s into %s", installation_source, installation_zip)
+                ctx.logger.info("Downloading Terraform from %s into %s",
+                                installation_source, installation_zip)
                 run_subprocess(
                     ['curl', '-o', installation_zip, installation_source],
                     ctx.logger
@@ -215,7 +223,8 @@ def install(ctx, **_):
         plugins_dir = ctx.node.properties['plugins_dir']
         if plugins_dir:
             if os.path.isdir(plugins_dir):
-                ctx.logger.info("Plugins directory already exists: %s", plugins_dir)
+                ctx.logger.info("Plugins directory already exists: %s",
+                                plugins_dir)
             else:
                 ctx.logger.info("Creating plugins directory: %s", plugins_dir)
                 os.makedirs(plugins_dir)
@@ -239,7 +248,8 @@ def install(ctx, **_):
         storage_path = ctx.node.properties['storage_path']
         if storage_path:
             if os.path.isdir(storage_path):
-                ctx.logger.info("Storage directory already exists: %s", storage_path)
+                ctx.logger.info("Storage directory already exists: %s",
+                                storage_path)
             else:
                 ctx.logger.info("Creating storage directory: %s", storage_path)
                 os.makedirs(storage_path)
@@ -264,4 +274,5 @@ def uninstall(ctx, **_):
             ctx.logger.info("Removing %s: %s", property_desc, dir_to_delete)
             shutil.rmtree(dir_to_delete)
         else:
-            ctx.logger.info("Directory %s doesn't exist; skipping", dir_to_delete)
+            ctx.logger.info("Directory %s doesn't exist; skipping",
+                            dir_to_delete)

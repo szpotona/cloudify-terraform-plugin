@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudify_common_sdk.resource_downloader import get_shared_resource
+from cloudify_common_sdk.resource_downloader import unzip_archive
+from cloudify_common_sdk.resource_downloader import untar_archive
+from cloudify_common_sdk.resource_downloader import TAR_FILE_EXTENSTIONS
+
+
 from contextlib import contextmanager
 import copy
 import tempfile
@@ -25,9 +31,6 @@ from tempfile import mkstemp
 import StringIO
 import shutil
 import subprocess
-import time
-
-import requests
 
 from . import TERRAFORM_BACKEND
 
@@ -72,11 +75,30 @@ def run_subprocess(command, logger, cwd=None,
         raise subprocess.CalledProcessError(return_code, command)
 
     output = stdout_consumer.buffer.getvalue() if return_output else None
-    logger.info("Returning output:\n%s", output if output is not None else '<None>')
+    logger.info("Returning output:\n%s",
+                output if output is not None else '<None>')
     return output
 
 
-def unzip_archive(ctx, archive_path, storage_path, **_):
+def _zip_archive(ctx, extracted_source, **_):
+    arhcive_file_path = None
+    ctx.logger.info("Zipping %s", extracted_source)
+    with tempfile.NamedTemporaryFile(suffix=".zip",
+                                     delete=False) as updated_zip:
+        updated_zip.close()
+        with zipfile.ZipFile(
+                updated_zip.name, mode='w',
+                compression=zipfile.ZIP_DEFLATED) as output_file:
+            for dir_name, subdirs, filenames in os.walk(extracted_source):
+                for filename in filenames:
+                    file_to_add = os.path.join(dir_name, filename)
+                    arc_name = file_to_add[len(extracted_source)+1:]
+                    output_file.write(file_to_add, arcname=arc_name)
+        arhcive_file_path = updated_zip.name
+    return arhcive_file_path
+
+
+def _unzip_archive(ctx, archive_path, storage_path, **_):
     """
     Unzip a zip archive.
     """
@@ -109,54 +131,55 @@ def get_terraform_source(ctx, _resource_config):
     # Look for the archive in the runtime properties.
     encoded_source = ctx.instance.runtime_properties.get('terraform_source')
     if not encoded_source:
-        # Not found, so we need to prepare a ZIP file of the archive,
+        # Not found, so we need to fetch the file from source,
         # and then set it as a runtime property for future operations.
         terraform_source = _resource_config['source']
-        split = terraform_source.split('://')
-        schema = split[0]
-        if schema in ['http', 'https']:
-            ctx.logger.info("Downloading template from %s", terraform_source)
-            with requests.get(terraform_source, allow_redirects=True,
-                              stream=True) as response:
-                response.raise_for_status()
-                with tempfile.NamedTemporaryFile(
-                        suffix=".zip", delete=False) as source_temp:
-                    terraform_source_zip = source_temp.name
-                    for chunk in response.iter_content(chunk_size=None):
-                        source_temp.write(chunk)
-            ctx.logger.info("Template downloaded successfully")
-        else:
-            if os.path.isabs(terraform_source):
-                dst = "/tmp/terraform_{0}.zip".format(int(round(time.time() * 1000)))
-                shutil.copy(terraform_source, dst)
-                terraform_source_zip = dst
-            else:
-                terraform_source_zip = ctx.download_resource(terraform_source)
+        source_tmp_path = get_shared_resource(terraform_source)
+        # check if we actually downloaded something or not
+        if source_tmp_path == terraform_source:
+            # didn't download anything so check the provided path
+            # if file and absolute path or not
+            if not os.path.isabs(source_tmp_path):
+                # bundled and need to be downloaded from blurprint
+                source_tmp_path = ctx.download_resource(source_tmp_path)
+            if os.path.isfile(source_tmp_path):
+                file_name = source_tmp_path.rsplit('/', 1)[1]
+                file_type = file_name.rsplit('.', 1)[1]
+                # check type
+                if file_type == 'zip':
+                    source_tmp_path = unzip_archive(source_tmp_path)
+                elif file_type in TAR_FILE_EXTENSTIONS:
+                    source_tmp_path = untar_archive(source_tmp_path)
 
+        # By getting here we will have extracted source
+        # Zip the file to store in runtime
+        terraform_source_zip = _zip_archive(ctx, source_tmp_path)
         # By getting here, "terraform_source_zip" is the path to a ZIP
         # file containing the Terraform files.
         # We need to encode the contents of the file and set them
         # as a runtime property.
         base64_rep = _file_to_base64(terraform_source_zip)
         ctx.instance.runtime_properties['terraform_source'] = base64_rep
-        ctx.instance.runtime_properties['last_source_location'] = terraform_source
+        ctx.instance.runtime_properties['last_source_location'] = \
+            terraform_source
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             base64.decode(StringIO.StringIO(encoded_source), f)
             terraform_source_zip = f.name
 
-    # By getting here, "terraform_source_zip" is the path to a ZIP file containing
-    # the Terraform files.
+    # By getting here, "terraform_source_zip" is the path
+    #  to a ZIP file containing the Terraform files.
     storage_path = ctx.node.properties['storage_path'] or None
     if storage_path and not os.path.isdir(storage_path):
         os.makedirs(storage_path)
-    extracted_source = unzip_archive(ctx, terraform_source_zip, storage_path)
+    extracted_source = _unzip_archive(ctx, terraform_source_zip, storage_path)
     os.remove(terraform_source_zip)
 
     module_root = extracted_source
     extracted_source_files = os.listdir(module_root)
     if len(extracted_source_files) == 1:
-        extracted_only_entry = os.path.join(extracted_source, extracted_source_files[0])
+        extracted_only_entry = os.path.join(extracted_source,
+                                            extracted_source_files[0])
         if os.path.isdir(extracted_only_entry):
             module_root = extracted_only_entry
 
@@ -175,23 +198,12 @@ def get_terraform_source(ctx, _resource_config):
     try:
         yield module_root
     finally:
-        ctx.logger.debug("Re-packaging Terraform files from %s", extracted_source)
-        with tempfile.NamedTemporaryFile(suffix=".zip",
-                                         delete=False) as updated_zip:
-            updated_zip.close()
-            with zipfile.ZipFile(
-                    updated_zip.name, mode='w',
-                    compression=zipfile.ZIP_DEFLATED) as output_file:
-                for dir_name, subdirs, filenames in os.walk(extracted_source):
-                    for filename in filenames:
-                        file_to_add = os.path.join(dir_name, filename)
-                        arc_name = file_to_add[len(extracted_source)+1:]
-                        ctx.logger.debug("Adding: %s as %s", file_to_add, arc_name)
-                        output_file.write(file_to_add, arcname=arc_name)
-
-        base64_rep = _file_to_base64(updated_zip.name)
+        ctx.logger.debug("Re-packaging Terraform files from %s",
+                         extracted_source)
+        archived_file = _zip_archive(ctx, extracted_source)
+        base64_rep = _file_to_base64(archived_file)
         ctx.instance.runtime_properties['terraform_source'] = base64_rep
-        os.remove(updated_zip.name)
+        os.remove(archived_file)
         shutil.rmtree(extracted_source)
 
 
@@ -204,7 +216,7 @@ def get_terraform_state_file(ctx):
     storage_path = ctx.node.properties.get('storage_path')
     if storage_path and not os.path.isdir(storage_path):
         os.makedirs(storage_path)
-    extracted_source = unzip_archive(ctx, terraform_source_zip, storage_path)
+    extracted_source = _unzip_archive(ctx, terraform_source_zip, storage_path)
     os.remove(terraform_source_zip)
     for dir_name, subdirs, filenames in os.walk(extracted_source):
         for filename in filenames:

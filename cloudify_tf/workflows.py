@@ -1,4 +1,5 @@
-def _terraform_operation(ctx, operation, node_ids, node_instance_ids, **kwargs):
+def _terraform_operation(ctx, operation, node_ids,
+                         node_instance_ids, **kwargs):
     graph = ctx.graph_mode()
     sequence = graph.sequence()
     # Iterate over all node instances of type "cloudify.nodes.terraform.Module"
@@ -8,7 +9,8 @@ def _terraform_operation(ctx, operation, node_ids, node_instance_ids, **kwargs):
             continue
         if node_instance_ids and (node_instance.id not in node_instance_ids):
             continue
-        if 'cloudify.nodes.terraform.Module' in node_instance.node.type_hierarchy:
+        if 'cloudify.nodes.terraform.Module' in \
+                node_instance.node.type_hierarchy:
             ctx.logger.info("Adding node instance: %s", node_instance.id)
             sequence.add(
                 node_instance.execute_operation(
@@ -36,7 +38,8 @@ def apply_resources(ctx, node_ids, node_instance_ids):
         node_instance_ids).execute()
 
 
-def reload_resources(ctx, node_ids, node_instance_ids, source, destroy_previous):
+def reload_resources(ctx, node_ids, node_instance_ids,
+                     source, destroy_previous):
     kwargs = dict(destroy_previous=destroy_previous)
     if source:
         kwargs['source'] = source
