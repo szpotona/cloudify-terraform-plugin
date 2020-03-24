@@ -124,6 +124,10 @@ def reload_template(ctx, source, destroy_previous, **_):
     """
     Terraform reload plan given new location as input
     """
+    if not source:
+        raise NonRecoverableError(
+            "New source path/URL for Terraform template was not provided")
+
     try:
         if source:
             state_file = None
@@ -155,10 +159,7 @@ def reload_template(ctx, source, destroy_previous, **_):
                 tf.plan()
                 tf.apply()
                 tf_state = tf.state_pull()
-                refresh_resources_properties(ctx, tf_state)
-        else:
-            raise NonRecoverableError(
-                "New source path/URL for Terraform template was not provided")
+                refresh_resources_properties(ctx, tf_state)            
 
     except Exception as ex:
         _, _, tb = sys.exc_info()
