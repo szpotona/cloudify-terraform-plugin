@@ -18,7 +18,7 @@ from setuptools import setup
 
 setup(
     name='cloudify-terraform-plugin',
-    version='0.12.0',
+    version='0.13.0',
     author='Cloudify',
     author_email='hello@cloudify.co',
     description='Enables Support of Terraform',
@@ -28,6 +28,6 @@ setup(
         'cloudify-common>=4.5.5',
         'pyyaml==3.10',
         'requests>=2.7.0,<3.0',
-        'cloudify-utilities-plugins-sdk==0.0.15',  # Shared Resource Downloader
+        'cloudify-utilities-plugins-sdk==0.0.16',  # Shared Resource Downloader
     ]
 )

@@ -1,3 +1,5 @@
+0.13.0:
+    - Bump cloudify_common_sdk version.
 0.12.0:
     - Change reload workflow parameter source default value.
 0.11.0:
