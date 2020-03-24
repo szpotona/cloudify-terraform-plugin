@@ -1,5 +1,7 @@
-0.10.0:
+0.11.0:
     - Use shared resource downloader from cloudify_common_sdk.
+0.10.0:
+    - Remove apply workflow and operation.
 0.9:
     - Allow source ZIP file to contain all Terraform files inside a directory, allowing easy integration with GitHub,
       GitLab etc
