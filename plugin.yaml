@@ -131,7 +131,6 @@ workflows:
         description: |
           List of node templates to refresh for.
 
-
   reload_terraform_template:
     mapping: tf.cloudify_tf.workflows.reload_resources
     parameters:
