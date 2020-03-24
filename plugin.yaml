@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.11.0'
+    package_version: '0.12.0'
 
 data_types:
   cloudify.types.terraform.Backend:
@@ -137,7 +137,7 @@ workflows:
       <<: *terraform_workflow_params
       source:
         type: string
-        default: null
+        default: ""
       destroy_previous:
         type: boolean
         default: false
