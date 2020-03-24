@@ -1,3 +1,5 @@
+0.12.0:
+    - Change reload workflow parameter source default value.
 0.11.0:
     - Use shared resource downloader from cloudify_common_sdk.
 0.10.0:
