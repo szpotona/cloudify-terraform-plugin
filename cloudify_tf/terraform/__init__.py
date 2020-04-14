@@ -1,5 +1,5 @@
 ########
-# Copyright (c) 2018 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2018-2020 GigaSpaces Technologies Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -120,8 +120,9 @@ class Terraform(object):
 
     @staticmethod
     def from_ctx(ctx, terraform_source):
-        executable_path = ctx.node.properties['executable_path']
-        plugins_dir = ctx.node.properties['plugins_dir']
+        executable_path = \
+            ctx.instance.runtime_properties.get('executable_path', "")
+        plugins_dir = ctx.instance.runtime_properties.get('plugins_dir', "")
         resource_config = ctx.node.properties['resource_config']
         if not os.path.exists(executable_path):
             raise NonRecoverableError(

@@ -2,59 +2,20 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.13.1'
+    package_version: '0.13.2'
+
+dsl_definitions:
+
+  terraform_config: &terraform_config
+    terraform_config:
+      type: cloudify.types.terraform.DirectoryConfig
+      description: Terraform directories for executions.
+      required: false
 
 data_types:
-  cloudify.types.terraform.Backend:
-    properties:
-      name:
-        type: string
-        description: Some name.
-        required: False
-      options:
-        description: Should be a dictionary of key/values.
-        required: False
 
-  cloudify.types.terraform.RootModule:
+  cloudify.types.terraform.DirectoryConfig:
     properties:
-      source:
-        type: string
-        description: >
-          Path or URL to the ZIP file containing the Terraform project.
-          If this is a path, then it must be relative to the blueprint's root.
-        required: true
-      backend:
-        type: cloudify.types.terraform.Backend
-        description: If a backend is not defined in source, and you want to use a specific backend, define that here.
-        default: {}
-      variables:
-        description: A dictionary of variables.
-        required: false
-        default: {}
-      environment_variables:
-        description: A dictionary of environment variables.
-        required: false
-        default: {}
-
-node_types:
-  # Represents a Terraform installation.
-  cloudify.nodes.terraform:
-    derived_from: cloudify.nodes.SoftwareComponent
-    properties:
-      use_existing_resource:
-        type: boolean
-        description: If true, use an existing Terraform installation rather than installing it
-        default: true
-      installation_source:
-        type: string
-        default: ''
-        description: >
-          Location to download the Terraform installation from. Ignored if 'use_existing' is true.
-      plugins:
-        type: list
-        default: []
-        description: >
-          List of plugins to download and install.
       executable_path:
         type: string
         description: The path to the terraform binary executable.
@@ -77,6 +38,66 @@ node_types:
           If a value is not provided, plugins will be downloaded on-the-fly. This is
           not recommended in production environments.
         default: ''
+
+  cloudify.types.terraform.InstallConfig:
+    properties:
+      use_existing_resource:
+        type: boolean
+        description: If true, use an existing Terraform installation rather than installing it
+        default: true
+      installation_source:
+        type: string
+        default: ''
+        description: >
+          Location to download the Terraform installation from. Ignored if 'use_existing' is true.
+      plugins:
+        # type: list commented for 4.X support
+        default: []
+        description: >
+          List of plugins to download and install.
+
+  cloudify.types.terraform.Backend:
+    properties:
+      name:
+        type: string
+        description: Some name.
+        required: False
+      options:
+        description: Should be a dictionary of key/values.
+        required: False
+
+  cloudify.types.terraform.RootModule:
+    properties:
+      source:
+        type: string
+        description: >
+          Path or URL to the ZIP file containing the Terraform project.
+          If this is a path, then it must be relative to the blueprint's root.
+        required: true
+      backend:
+        type: cloudify.types.terraform.Backend
+        description: >
+          If a backend is not defined in source,
+          and you want to use a specific backend, define that here.
+        default: {}
+      variables:
+        description: A dictionary of variables.
+        required: false
+        default: {}
+      environment_variables:
+        description: A dictionary of environment variables.
+        required: false
+        default: {}
+
+node_types:
+  # Represents a Terraform installation.
+  cloudify.nodes.terraform:
+    derived_from: cloudify.nodes.SoftwareComponent
+    properties:
+      <<: *terraform_config
+      resource_config:
+        type: cloudify.types.terraform.InstallConfig
+        required: true
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
@@ -86,17 +107,13 @@ node_types:
 
   # Represents a Terraform module.
   cloudify.nodes.terraform.Module:
-    derived_from: cloudify.nodes.terraform
+    derived_from: cloudify.nodes.ApplicationModule
     properties:
       resource_config:
         type: cloudify.types.terraform.RootModule
         required: true
     interfaces:
       cloudify.interfaces.lifecycle:
-        create:
-          implementation: tf.cloudify_tf.tasks.init
-        configure:
-          implementation: tf.cloudify_tf.tasks.state_pull
         start:
           implementation: tf.cloudify_tf.tasks.apply
         delete:
@@ -125,17 +142,26 @@ node_types:
           # Refreshes Terraform's state.
           implementation: tf.cloudify_tf.tasks.state_pull
 
+relationships:
+
+  cloudify.terraform.relationships.run_on_host:
+    derived_from: cloudify.relationships.connected_to
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: tf.cloudify_tf.tasks.set_directory_config
+
 workflows:
   refresh_terraform_resources:
     mapping: tf.cloudify_tf.workflows.refresh_resources
     parameters: &terraform_workflow_params
       node_instance_ids:
-        type: list
+        # type: list commented for 4.X support
         default: []
         description: |
           List of node instance ID's to refresh for.
       node_ids:
-        type: list
+        # type: list commented for 4.X support
         default: []
         description: |
           List of node templates to refresh for.
