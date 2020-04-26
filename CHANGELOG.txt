@@ -1,3 +1,7 @@
+0.13.2:
+    - Update on Terraform nodes definitions.
+0.13.1:
+    - Update on Terraform plugin documentation.
 0.13.0:
     - Bump cloudify_common_sdk version.
 0.12.0:

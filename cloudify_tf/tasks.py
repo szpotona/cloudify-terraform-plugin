@@ -1,5 +1,5 @@
 ########
-# Copyright (c) 2018 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2018-2020 GigaSpaces Technologies Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,27 +56,13 @@ def refresh_resources_properties(ctx, state):
 
 @operation
 @with_terraform
-def init(ctx, tf, **_):
-    """
-    Execute `terraform init`.
-    """
-    try:
-        tf.init()
-        tf.plan()
-    except Exception as ex:
-        _, _, tb = sys.exc_info()
-        raise NonRecoverableError(
-            "Failed initializing Terraform",
-            causes=[exception_to_error_cause(ex, tb)])
-
-
-@operation
-@with_terraform
 def apply(ctx, tf, **_):
     """
     Execute `terraform apply`.
     """
     try:
+        tf.init()
+        tf.plan()
         tf.apply()
         tf_state = tf.state_pull()
     except Exception as ex:
@@ -146,9 +132,9 @@ def reload_template(ctx, source, destroy_previous, **_):
         # initialize new location to apply terraform
         ctx.instance.runtime_properties.pop('terraform_source', None)
         ctx.instance.runtime_properties.pop('last_source_location', None)
-        ctx.node.properties['resource_config']['source'] = source
 
         resource_config = ctx.node.properties['resource_config']
+        resource_config['source'] = source
         with get_terraform_source(ctx, resource_config) as \
                 terraform_source:
             tf = Terraform.from_ctx(ctx, terraform_source)
@@ -168,7 +154,8 @@ def reload_template(ctx, source, destroy_previous, **_):
 
 
 def is_using_existing(ctx):
-    return ctx.node.properties['use_existing_resource']
+    return ctx.node.properties.get(
+       'resource_config', {}).get('use_existing_resource', True)
 
 
 def skip_if_existing(func):
@@ -195,7 +182,8 @@ def install(ctx, **_):
                     ctx.logger
                 )
 
-    executable_path = ctx.node.properties['executable_path']
+    executable_path = ctx.node.properties.get(
+        'terraform_config', {}).get('executable_path', "")
     installation_temp_dir = tempfile.mkdtemp()
     try:
         if not is_using_existing(ctx):
@@ -206,7 +194,10 @@ def install(ctx, **_):
                     executable_path)
             else:
                 installation_source = \
-                    ctx.node.properties['installation_source']
+                     ctx.node.properties.get(
+                        'resource_config', {}).get('installation_source', "")
+                if not installation_source:
+                    raise NonRecoverableError("invalid installation_source")
                 installation_zip = \
                     os.path.join(installation_temp_dir, 'tf.zip')
 
@@ -218,9 +209,13 @@ def install(ctx, **_):
                 )
                 executable_dir = os.path.dirname(executable_path)
                 _unzip_and_set_permissions(installation_zip, executable_dir)
+        # store the values in the runtime for safe keeping -> validation
+        ctx.instance.runtime_properties['executable_path'] = executable_path
+
 
         # Create plugins directory, if needed.
-        plugins_dir = ctx.node.properties['plugins_dir']
+        plugins_dir = ctx.node.properties.get(
+           'terraform_config', {}).get('plugins_dir', "")
         if plugins_dir:
             if os.path.isdir(plugins_dir):
                 ctx.logger.info("Plugins directory already exists: %s",
@@ -228,9 +223,12 @@ def install(ctx, **_):
             else:
                 ctx.logger.info("Creating plugins directory: %s", plugins_dir)
                 os.makedirs(plugins_dir)
+        # store the values in the runtime for safe keeping -> validation
+        ctx.instance.runtime_properties['plugins_dir'] = plugins_dir
 
         # Install plugins.
-        plugins = ctx.node.properties['plugins']
+        plugins = ctx.node.properties.get(
+           'resource_config', {}).get('plugins', [])
         for plugin in plugins:
             with tempfile.NamedTemporaryFile(
                     suffix=".zip",
@@ -245,7 +243,8 @@ def install(ctx, **_):
                 _unzip_and_set_permissions(plugin_zip.name, plugins_dir)
 
         # Create storage path, if specified.
-        storage_path = ctx.node.properties['storage_path']
+        storage_path = ctx.node.properties.get(
+           'terraform_config', {}).get('storage_path', "")
         if storage_path:
             if os.path.isdir(storage_path):
                 ctx.logger.info("Storage directory already exists: %s",
@@ -253,6 +252,8 @@ def install(ctx, **_):
             else:
                 ctx.logger.info("Creating storage directory: %s", storage_path)
                 os.makedirs(storage_path)
+        # store the values in the runtime for safe keeping -> validation
+        ctx.instance.runtime_properties['storage_path'] = storage_path
     finally:
         if installation_temp_dir:
             shutil.rmtree(installation_temp_dir)
@@ -261,18 +262,40 @@ def install(ctx, **_):
 @operation
 @skip_if_existing
 def uninstall(ctx, **_):
-    executable_path = ctx.node.properties['executable_path']
-    ctx.logger.info("Removing executable: %s", executable_path)
-    os.remove(executable_path)
+    executable_path = ctx.node.properties.get("terraform_config", {}).get(
+        'executable_path', "")
+    if os.path.isfile(executable_path):
+        ctx.logger.info("Removing executable: %s", executable_path)
+        os.remove(executable_path)
 
     for property_name, property_desc in [
         ('plugins_dir', 'plugins directory'),
         ('storage_path', 'storage_directory')
     ]:
-        dir_to_delete = ctx.node.properties[property_name]
+        dir_to_delete = ctx.node.properties.get(
+            'terraform_config', {}).get('{0}'.format(property_name), "")
         if os.path.isdir(dir_to_delete):
             ctx.logger.info("Removing %s: %s", property_desc, dir_to_delete)
+
             shutil.rmtree(dir_to_delete)
         else:
             ctx.logger.info("Directory %s doesn't exist; skipping",
                             dir_to_delete)
+
+
+@operation
+def set_directory_config(ctx, **_):
+    executable_path = \
+        ctx.target.instance.runtime_properties.get('executable_path', "")
+    plugins_dir = \
+        ctx.target.instance.runtime_properties.get('plugins_dir', "")
+    storage_path = \
+        ctx.target.instance.runtime_properties.get('storage_path', "")
+
+    ctx.logger.info("setting executable_path to {0}".format(executable_path))
+    ctx.logger.info("setting plugins_dir to {0}".format(plugins_dir))
+    ctx.logger.info("setting storage_path to {0}".format(storage_path))
+
+    ctx.source.instance.runtime_properties['executable_path'] = executable_path
+    ctx.source.instance.runtime_properties['plugins_dir'] = plugins_dir
+    ctx.source.instance.runtime_properties['storage_path'] = storage_path

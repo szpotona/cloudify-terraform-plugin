@@ -1,5 +1,5 @@
 ########
-# Copyright (c) 2018 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2018-2020 GigaSpaces Technologies Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -169,7 +169,7 @@ def get_terraform_source(ctx, _resource_config):
 
     # By getting here, "terraform_source_zip" is the path
     #  to a ZIP file containing the Terraform files.
-    storage_path = ctx.node.properties['storage_path'] or None
+    storage_path = ctx.instance.runtime_properties.get('storage_path', "")
     if storage_path and not os.path.isdir(storage_path):
         os.makedirs(storage_path)
     extracted_source = _unzip_archive(ctx, terraform_source_zip, storage_path)
@@ -213,7 +213,7 @@ def get_terraform_state_file(ctx):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         base64.decode(StringIO.StringIO(encoded_source), f)
         terraform_source_zip = f.name
-    storage_path = ctx.node.properties.get('storage_path')
+    storage_path = ctx.instance.runtime_properties.get('storage_path', "")
     if storage_path and not os.path.isdir(storage_path):
         os.makedirs(storage_path)
     extracted_source = _unzip_archive(ctx, terraform_source_zip, storage_path)

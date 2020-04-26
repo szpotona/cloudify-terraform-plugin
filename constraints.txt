@@ -2,3 +2,5 @@ cloudify-common==4.5.5
 pyyaml==3.10
 requests==2.23.0
 cloudify-utilities-plugins-sdk==0.0.16
+nose
+mock>=1.0
