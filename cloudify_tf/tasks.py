@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import absolute_import
 
 import os
 import tempfile
@@ -25,8 +26,8 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify.decorators import operation
 from cloudify.utils import exception_to_error_cause
 
-from terraform import Terraform
-from utils import (get_terraform_source, get_terraform_state_file,
+from .terraform import Terraform
+from .utils import (get_terraform_source, get_terraform_state_file,
                    move_state_file, run_subprocess)
 
 
