@@ -212,7 +212,6 @@ def install(ctx, **_):
         # store the values in the runtime for safe keeping -> validation
         ctx.instance.runtime_properties['executable_path'] = executable_path
 
-
         # Create plugins directory, if needed.
         plugins_dir = ctx.node.properties.get(
            'terraform_config', {}).get('plugins_dir', "")
