@@ -28,7 +28,7 @@ from cloudify.utils import exception_to_error_cause
 
 from .terraform import Terraform
 from .utils import (get_terraform_source, get_terraform_state_file,
-                   move_state_file, run_subprocess)
+                    move_state_file, run_subprocess)
 
 
 def with_terraform(func):
