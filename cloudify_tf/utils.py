@@ -33,6 +33,7 @@ import shutil
 import subprocess
 
 from . import TERRAFORM_BACKEND
+from ._compat import text_type
 
 TERRAFORM_STATE_FILE = "terraform.tfstate"
 
@@ -115,7 +116,7 @@ def _unzip_archive(ctx, archive_path, storage_path, **_):
 
 
 def clean_strings(string):
-    if isinstance(string, unicode):
+    if isinstance(string, text_type):
         return string.encode('utf-8').rstrip("'").lstrip("'")
     return string
 
@@ -164,6 +165,7 @@ def get_terraform_source(ctx, _resource_config):
             terraform_source
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
+            ctx.logger.info("the type of the encoded source is:{0} ".format(type(encoded_source)))
             base64.decode(StringIO.StringIO(encoded_source), f)
             terraform_source_zip = f.name
 
@@ -237,7 +239,7 @@ def create_backend_string(name, options):
     # TODO: Get a better way of setting backends.
     option_string = ''
     for option_name, option_value in options.items():
-        if isinstance(option_value, basestring):
+        if isinstance(option_value, text_type):
             option_value = '"%s"' % option_value
         option_string += '    %s = %s\n' % (option_name, option_value)
     backend_block = TERRAFORM_BACKEND % (name, option_string)

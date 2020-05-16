@@ -50,7 +50,7 @@ def refresh_resources_properties(ctx, state):
         resources[resource['name']] = resource
     for module in state.get('modules', []):
         for resource_name, resource_def in module.get('resources',
-                                                      {}).iteritems():
+                                                      {}).items():
             resources[resource_name] = resource_def
     ctx.instance.runtime_properties['resources'] = resources
 
