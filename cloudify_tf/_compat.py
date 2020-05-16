@@ -21,11 +21,7 @@ import sys
 PY2 = sys.version_info[0] == 2
 
 if PY2:
-
-    try:
-        from cStringIO import StringIO
-    except ImportError:
-        from StringIO import StringIO
+    from StringIO import StringIO
     exec ("""
 def reraise(exception_type, value, traceback):
     raise exception_type, value, traceback

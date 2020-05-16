@@ -28,12 +28,11 @@ import zipfile
 import os
 from io import BytesIO
 from tempfile import mkstemp
-import StringIO
 import shutil
 import subprocess
 
 from . import TERRAFORM_BACKEND
-from ._compat import text_type
+from ._compat import text_type, StringIO
 
 TERRAFORM_STATE_FILE = "terraform.tfstate"
 
@@ -165,8 +164,7 @@ def get_terraform_source(ctx, _resource_config):
             terraform_source
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
-            ctx.logger.info("the type of the encoded source is:{0} ".format(type(encoded_source)))
-            base64.decode(StringIO.StringIO(encoded_source), f)
+            base64.decode(StringIO(encoded_source), f)
             terraform_source_zip = f.name
 
     # By getting here, "terraform_source_zip" is the path
@@ -213,7 +211,7 @@ def get_terraform_state_file(ctx):
     state_file_path = None
     encoded_source = ctx.instance.runtime_properties.get('terraform_source')
     with tempfile.NamedTemporaryFile(delete=False) as f:
-        base64.decode(StringIO.StringIO(encoded_source), f)
+        base64.decode(StringIO(encoded_source), f)
         terraform_source_zip = f.name
     storage_path = ctx.instance.runtime_properties.get('storage_path', "")
     if storage_path and not os.path.isdir(storage_path):
@@ -280,7 +278,7 @@ class LoggingOutputConsumer(OutputConsumer):
 class CapturingOutputConsumer(OutputConsumer):
     def __init__(self, out):
         OutputConsumer.__init__(self, out)
-        self.buffer = StringIO.StringIO()
+        self.buffer = StringIO()
         self.consumer.start()
 
     def handle_line(self, line):
