@@ -272,7 +272,7 @@ class LoggingOutputConsumer(OutputConsumer):
         self.consumer.start()
 
     def handle_line(self, line):
-        self.logger.info("%s%s", self.prefix, line.rstrip('\n'))
+        self.logger.info("{0}{1}".format(self.prefix, line.rstrip('\n')))
 
 
 class CapturingOutputConsumer(OutputConsumer):
