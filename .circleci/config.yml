@@ -248,11 +248,11 @@ workflows:
     jobs: &all_jobs
       - py3_compat
       - unittests_py27
-#      - unittests_py36
-#      - wagon:
-#          filters:
-#            branches:
-#              only: /([0-9\.]*\-build|master|dev)/
+      - unittests_py36
+      - wagon:
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
 #      - integration_tests:
 #          requires:
 #            - wagon
