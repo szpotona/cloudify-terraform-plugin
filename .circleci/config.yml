@@ -29,7 +29,7 @@ executors:
 
 commands:
 
-  run_unittests_py27:
+  run_unittest_py27:
     steps:
       - run:
           name: "Pull Submodules"
