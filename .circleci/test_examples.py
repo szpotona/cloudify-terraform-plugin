@@ -23,7 +23,8 @@ from ecosystem_tests.dorkl import (
 )
 
 SECRETS_TO_CREATE = {
-    'gcp_credentials': True
+    'aws_access_key_id': False,
+    'aws_secret_access_key': False,
 }
 
 prepare_test(secrets=SECRETS_TO_CREATE)
@@ -36,11 +37,9 @@ blueprint_list = [
 def blueprint_examples(request):
     dirname_param = os.path.dirname(request.param).split('/')[-1:][0]
     try:
-
-        # inputs = 'network_name=gcpnet-{0} -i subnet_name=gcpsub-{0}'
         basic_blueprint_test(
             request.param, dirname_param,
-            inputs=None, timeout=3000)
+            inputs='aws_region_name=us-east-1', timeout=3000)
     except:
         cleanup_on_failure(dirname_param)
         raise
