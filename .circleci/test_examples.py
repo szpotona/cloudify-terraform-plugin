@@ -45,6 +45,5 @@ def blueprint_examples(request):
         raise
 
 
-
 def test_blueprints(blueprint_examples):
     assert blueprint_examples is None
