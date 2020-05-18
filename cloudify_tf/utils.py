@@ -126,7 +126,7 @@ def get_terraform_source(ctx, _resource_config):
         base64_rep = BytesIO()
         with open(file_path, 'rb') as f:
             base64.encode(f, base64_rep)
-        return base64_rep.getvalue()
+        return base64_rep.getvalue().decode('utf-8')
 
     # Look for the archive in the runtime properties.
     encoded_source = ctx.instance.runtime_properties.get('terraform_source')
@@ -284,7 +284,7 @@ class CapturingOutputConsumer(OutputConsumer):
         self.consumer.start()
 
     def handle_line(self, line):
-        self.buffer.write(line)
+        self.buffer.write(line.decode('utf-8'))
 
     def get_buffer(self):
         return self.buffer

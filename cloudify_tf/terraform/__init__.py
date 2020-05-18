@@ -24,6 +24,7 @@ from cloudify.exceptions import NonRecoverableError
 from ..utils import run_subprocess
 
 
+
 class Terraform(object):
     # TODO: Rework this to put the execute method in its own module.
     # TODO: After you do that, move all the SSH commands to the tasks module.
@@ -67,7 +68,8 @@ class Terraform(object):
 
     @contextmanager
     def _vars_file(self, command):
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False,
+                                         mode="w") as f:
             json.dump(self.variables, f)
             f.close()
             command.extend(['-var-file', f.name])
