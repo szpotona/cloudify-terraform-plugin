@@ -28,10 +28,10 @@ setup(
         "cloudify-common>=4.5.5",
         "pyyaml==3.12",
         "requests>=2.7.0,<3.0",
-        "cloudify-utilities-plugins-sdk==0.0.20",  # Shared Resource Downloader
+        "cloudify-utilities-plugins-sdk==0.0.21",  # Shared Resource Downloader
     ],
     test_requires=[
-        "cloudify-common==5.1.0.dev1",
+        "cloudify-common>=4.5.5",
         "nose==1.3.7",
     ]
 )
