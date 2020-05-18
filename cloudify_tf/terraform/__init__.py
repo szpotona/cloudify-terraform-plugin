@@ -24,7 +24,6 @@ from cloudify.exceptions import NonRecoverableError
 from ..utils import run_subprocess
 
 
-
 class Terraform(object):
     # TODO: Rework this to put the execute method in its own module.
     # TODO: After you do that, move all the SSH commands to the tasks module.
