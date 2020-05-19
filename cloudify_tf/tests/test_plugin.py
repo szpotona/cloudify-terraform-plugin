@@ -12,61 +12,52 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mock
-import shutil
 import unittest
-import tempfile
 
-
-from os import (path, mkdir, listdir)
+from os import path
 from uuid import uuid1
-from functools import wraps
 
 from cloudify.state import current_ctx
-from cloudify.test_utils import workflow_test
 from cloudify.mocks import (MockContext, MockCloudifyContext,
-                            MockRelationshipContext, MockNodeInstanceContext,
+                            MockNodeInstanceContext,
                             MockNodeContext)
-from cloudify.exceptions import NonRecoverableError
 
 from cloudify_tf.tasks import (install, set_directory_config, )
 
 
-
 class TestPlugin(unittest.TestCase):
-
 
     def setUp(self):
         super(TestPlugin, self).setUp()
 
     def mock_ctx(self, test_name, test_properties,
-        test_runtime_properties=None):
+                 test_runtime_properties=None):
         test_node_id = uuid1()
         ctx = MockCloudifyContext(
             node_id=test_node_id,
             properties=test_properties,
-            runtime_properties= None if not test_runtime_properties
-                                     else test_runtime_properties,
+            runtime_properties=None if not test_runtime_properties
+            else test_runtime_properties,
         )
         return ctx
 
     def test_install(self):
-
         def get_terraform_conf_props():
             return {
-                "terraform_config":{
+                "terraform_config": {
                     "executable_path": "/tmp/terra/terraform",
                     "storage_path": "/tmp/terra/storage",
                     "plugins_dir": "/tmp/terra/plugins",
                 },
-                "resource_config":{
-                    "use_existing_resource" : False,
+                "resource_config": {
+                    "use_existing_resource": False,
                     "installation_source":
-                        "https://releases.hashicorp.com/terraform/0.11.7/"\
+                        "https://releases.hashicorp.com/terraform/0.11.7/"
                         "terraform_0.11.7_linux_amd64.zip",
                     "plugins": []
                 }
             }
+
         conf = get_terraform_conf_props()
         ctx = self.mock_ctx("test_set_directory_config", conf)
         current_ctx.set(ctx=ctx)
@@ -74,28 +65,29 @@ class TestPlugin(unittest.TestCase):
             'ctx': ctx
         }
         install(**kwargs)
-        self.assertEqual(ctx.instance.runtime_properties.get("executable_path"),
-            conf.get("terraform_config").get("executable_path"))
+        self.assertEqual(ctx.instance.runtime_properties.get(
+            "executable_path"),
+                         conf.get("terraform_config").get("executable_path"))
         self.assertEqual(ctx.instance.runtime_properties.get("storage_path"),
-            conf.get("terraform_config").get("storage_path"))
+                         conf.get("terraform_config").get("storage_path"))
         self.assertEqual(ctx.instance.runtime_properties.get("plugins_dir"),
-            conf.get("terraform_config").get("plugins_dir"))
+                         conf.get("terraform_config").get("plugins_dir"))
         self.assertTrue(
-            path.isfile(ctx.instance.runtime_properties.get("executable_path")))
+            path.isfile(ctx.instance.runtime_properties.get(
+                "executable_path")))
 
     def test_set_directory_config(self):
-
         def get_terraform_conf_props():
             return {
-                "terraform_config":{
+                "terraform_config": {
                     "executable_path": "/tmp/terra/terraform",
                     "storage_path": "/tmp/terra/storage",
                     "plugins_dir": "/tmp/terra/plugins",
                 },
-                "resource_config":{
-                    "use_existing_resource" : False,
+                "resource_config": {
+                    "use_existing_resource": False,
                     "installation_source":
-                        "https://releases.hashicorp.com/terraform/0.11.7/"\
+                        "https://releases.hashicorp.com/terraform/0.11.7/"
                         "terraform_0.11.7_linux_amd64.zip",
                     "plugins": []
                 }
@@ -103,14 +95,14 @@ class TestPlugin(unittest.TestCase):
 
         def get_terraform_module_conf_props():
             return {
-                "resource_config":{
+                "resource_config": {
                     "source": "/tmp/terra/template",
                     "variables": {
-                        "a":"var1",
-                        "b":"var2"
+                        "a": "var1",
+                        "b": "var2"
                     },
                     "environment_variables": {
-                        "EXEC_PATH":"/tmp/terra/execution",
+                        "EXEC_PATH": "/tmp/terra/execution",
                     }
                 }
             }
@@ -118,12 +110,12 @@ class TestPlugin(unittest.TestCase):
         target = MockContext({
             'instance': MockNodeInstanceContext(
                 id='terra_install-1',
-                runtime_properties=
-                    get_terraform_conf_props().get("terraform_config")
+                runtime_properties=get_terraform_conf_props().get(
+                    "terraform_config")
             ),
             'node': MockNodeContext(
                 id='1',
-                properties= get_terraform_conf_props()
+                properties=get_terraform_conf_props()
             ), '_context': {
                 'node_id': '1'
             }})
@@ -133,11 +125,11 @@ class TestPlugin(unittest.TestCase):
                 runtime_properties={}),
             'node': MockNodeContext(
                 id='2',
-                properties= get_terraform_module_conf_props()
+                properties=get_terraform_module_conf_props()
             ), '_context': {
                 'node_id': '2'
             }})
-        ctx = MockCloudifyContext(source = source, target = target)
+        ctx = MockCloudifyContext(source=source, target=target)
         current_ctx.set(ctx=ctx)
         kwargs = {
             'ctx': ctx

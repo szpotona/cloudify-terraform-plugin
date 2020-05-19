@@ -28,11 +28,11 @@ import zipfile
 import os
 from io import BytesIO
 from tempfile import mkstemp
-import StringIO
 import shutil
 import subprocess
 
 from . import TERRAFORM_BACKEND
+from ._compat import text_type, StringIO
 
 TERRAFORM_STATE_FILE = "terraform.tfstate"
 
@@ -115,7 +115,7 @@ def _unzip_archive(ctx, archive_path, storage_path, **_):
 
 
 def clean_strings(string):
-    if isinstance(string, unicode):
+    if isinstance(string, text_type):
         return string.encode('utf-8').rstrip("'").lstrip("'")
     return string
 
@@ -126,7 +126,7 @@ def get_terraform_source(ctx, _resource_config):
         base64_rep = BytesIO()
         with open(file_path, 'rb') as f:
             base64.encode(f, base64_rep)
-        return base64_rep.getvalue()
+        return base64_rep.getvalue().decode('utf-8')
 
     # Look for the archive in the runtime properties.
     encoded_source = ctx.instance.runtime_properties.get('terraform_source')
@@ -164,7 +164,7 @@ def get_terraform_source(ctx, _resource_config):
             terraform_source
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
-            base64.decode(StringIO.StringIO(encoded_source), f)
+            base64.decode(StringIO(encoded_source), f)
             terraform_source_zip = f.name
 
     # By getting here, "terraform_source_zip" is the path
@@ -211,7 +211,7 @@ def get_terraform_state_file(ctx):
     state_file_path = None
     encoded_source = ctx.instance.runtime_properties.get('terraform_source')
     with tempfile.NamedTemporaryFile(delete=False) as f:
-        base64.decode(StringIO.StringIO(encoded_source), f)
+        base64.decode(StringIO(encoded_source), f)
         terraform_source_zip = f.name
     storage_path = ctx.instance.runtime_properties.get('storage_path', "")
     if storage_path and not os.path.isdir(storage_path):
@@ -237,7 +237,7 @@ def create_backend_string(name, options):
     # TODO: Get a better way of setting backends.
     option_string = ''
     for option_name, option_value in options.items():
-        if isinstance(option_value, basestring):
+        if isinstance(option_value, text_type):
             option_value = '"%s"' % option_value
         option_string += '    %s = %s\n' % (option_name, option_value)
     backend_block = TERRAFORM_BACKEND % (name, option_string)
@@ -272,17 +272,19 @@ class LoggingOutputConsumer(OutputConsumer):
         self.consumer.start()
 
     def handle_line(self, line):
-        self.logger.info("%s%s", self.prefix, line.rstrip('\n'))
+        self.logger.info(
+            "{0}{1}".format(text_type(self.prefix),
+                            line.decode('utf-8').rstrip('\n')))
 
 
 class CapturingOutputConsumer(OutputConsumer):
     def __init__(self, out):
         OutputConsumer.__init__(self, out)
-        self.buffer = StringIO.StringIO()
+        self.buffer = StringIO()
         self.consumer.start()
 
     def handle_line(self, line):
-        self.buffer.write(line)
+        self.buffer.write(line.decode('utf-8'))
 
     def get_buffer(self):
         return self.buffer

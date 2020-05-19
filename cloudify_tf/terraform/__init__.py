@@ -67,7 +67,8 @@ class Terraform(object):
 
     @contextmanager
     def _vars_file(self, command):
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False,
+                                         mode="w") as f:
             json.dump(self.variables, f)
             f.close()
             command.extend(['-var-file', f.name])

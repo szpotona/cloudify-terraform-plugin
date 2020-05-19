@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import absolute_import
 
 import os
 import tempfile
@@ -25,9 +26,9 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify.decorators import operation
 from cloudify.utils import exception_to_error_cause
 
-from terraform import Terraform
-from utils import (get_terraform_source, get_terraform_state_file,
-                   move_state_file, run_subprocess)
+from .terraform import Terraform
+from .utils import (get_terraform_source, get_terraform_state_file,
+                    move_state_file, run_subprocess)
 
 
 def with_terraform(func):
@@ -49,7 +50,7 @@ def refresh_resources_properties(ctx, state):
         resources[resource['name']] = resource
     for module in state.get('modules', []):
         for resource_name, resource_def in module.get('resources',
-                                                      {}).iteritems():
+                                                      {}).items():
             resources[resource_name] = resource_def
     ctx.instance.runtime_properties['resources'] = resources
 
@@ -211,7 +212,6 @@ def install(ctx, **_):
                 _unzip_and_set_permissions(installation_zip, executable_dir)
         # store the values in the runtime for safe keeping -> validation
         ctx.instance.runtime_properties['executable_path'] = executable_path
-
 
         # Create plugins directory, if needed.
         plugins_dir = ctx.node.properties.get(
