@@ -1,5 +1,6 @@
 0.13.4:
     - Update wagon builder to py2py3 wagon and add rhel wagon to the release.
+    - Add 5.1.0 integration tests.
 0.13.3:
     - port to python 3 and added release management and integration tests flows.
 0.13.2:
