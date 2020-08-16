@@ -1,6 +1,6 @@
 # Terraform Plugin Examples
 
-To start using our examples go to our [blueprint examples repo](https://github.com/cloudify-community/blueprint-examples/).
+To start using our examples go to our [Getting Started documentation](https://docs.cloudify.co/latest/trial_getting_started/examples/).
 
 If you need to download them into this directory for executing tests, run:
 
