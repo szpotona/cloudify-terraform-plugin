@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.13.4'
+    package_version: '0.14.0'
 
 dsl_definitions:
 
@@ -19,16 +19,17 @@ data_types:
       executable_path:
         type: string
         description: The path to the terraform binary executable.
-        default: /usr/bin/terraform
+        required: false
       storage_path:
         type: string
-        description: |
+        description: >
           Directory to store downloaded Terraform templates. The directory must
           either already exist and be writable by 'cfyuser', or alternatively
           be create-able by 'cfyuser'.
           The default is an empty string, which prompts the plugin to use the OS
           temporary directory.
-        default: ''
+          Update 0.13.5: DEPRECATED.
+        required: false
       plugins_dir:
         type: string
         description: >
@@ -37,24 +38,23 @@ data_types:
           no plugins are downloaded on-the-fly, for increased stability.
           If a value is not provided, plugins will be downloaded on-the-fly. This is
           not recommended in production environments.
-        default: ''
+          Update 0.13.5: DEPRECATED.
+        required: false
 
   cloudify.types.terraform.InstallConfig:
     properties:
       use_existing_resource:
         type: boolean
         description: If true, use an existing Terraform installation rather than installing it
-        default: true
+        default: false
       installation_source:
         type: string
-        default: ''
-        description: >
-          Location to download the Terraform installation from. Ignored if 'use_existing' is true.
+        default: 'https://releases.hashicorp.com/terraform/0.13.3/terraform_0.13.3_linux_amd64.zip'
+        description: Location to download the Terraform executable binary from. Ignored if 'use_existing' is true.
       plugins:
         # type: list commented for 4.X support
-        default: []
-        description: >
-          List of plugins to download and install.
+        default: {}
+        description: List of plugins to download and install.
 
   cloudify.types.terraform.Backend:
     properties:
@@ -74,6 +74,10 @@ data_types:
           Path or URL to the ZIP file containing the Terraform project.
           If this is a path, then it must be relative to the blueprint's root.
         required: true
+      source_path:
+        type: string
+        description: The path within the source property, where the terraform files may be found.
+        default: ''
       backend:
         type: cloudify.types.terraform.Backend
         description: >
@@ -132,6 +136,10 @@ node_types:
                 from its last location.
               type: string
               default: { get_attribute: [ SELF, last_source_location ] }
+            source_path:
+              type: string
+              description: The path within the source property, where the terraform files may be found.
+              default: { get_property: [ SELF, resource_config, source_path ] }
             destroy_previous:
               description: >
                 If true, then the plugin destroys the existing Terraform
@@ -152,6 +160,7 @@ relationships:
           implementation: tf.cloudify_tf.tasks.set_directory_config
 
 workflows:
+
   refresh_terraform_resources:
     mapping: tf.cloudify_tf.workflows.refresh_resources
     parameters: &terraform_workflow_params
