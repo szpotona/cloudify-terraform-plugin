@@ -1,3 +1,6 @@
+0.14.4:
+    - Mask AWS credentials if provided through environment variables.
+    - Some logging improvements.
 0.14.3:
     - Update PyYAML Security vulnerability.
 0.14.2:
