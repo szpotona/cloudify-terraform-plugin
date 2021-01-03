@@ -144,18 +144,22 @@ def uninstall(ctx, **_):
     exc_path = terraform_config.get('executable_path', '')
     system_exc = resource_config.get('use_existing_resource')
 
-    if os.path.isfile(exc_path) and not system_exc:
-        ctx.logger.info('Removing executable: {path}'.format(path=exc_path))
-        os.remove(exc_path)
-    elif os.path.isfile(exc_path):
-        ctx.logger.warn('Unable to remove file {loc} because it is a system '
-                        'resource.'.format(loc=exc_path))
+    if os.path.isfile(exc_path):
+        if system_exc:
+            ctx.logger.info(
+                'Not removing Terraform installation at {loc} as'
+                'it was provided externally'.format(loc=exc_path))
+        else:
+            ctx.logger.info('Removing executable: {path}'.format(
+                path=exc_path))
+            os.remove(exc_path)
 
     for property_name, property_desc in [
             ('plugins_dir', 'plugins directory'),
             ('storage_path', 'storage_directory')]:
-        dir_to_delete = terraform_config.get(property_name, '')
-        utils.remove_dir(dir_to_delete, property_desc)
+        dir_to_delete = terraform_config.get(property_name, None)
+        if dir_to_delete:
+            utils.remove_dir(dir_to_delete, property_desc)
 
 
 @operation

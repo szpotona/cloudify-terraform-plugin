@@ -45,6 +45,11 @@ from ._compat import text_type, StringIO, PermissionDenied, mkdir_p
 
 TERRAFORM_STATE_FILE = 'terraform.tfstate'
 
+MASKED_ENV_VARS = {
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY'
+}
+
 
 def download_file(source, destination):
     run_subprocess(['curl', '-o', source, destination])
@@ -71,12 +76,18 @@ def run_subprocess(command,
         passed_env.update(os.environ)
         passed_env.update(additional_env)
 
+    printed_args = copy.deepcopy(args_to_pass)
+    printed_env = printed_args.get('env', {})
+    for env_var in printed_env.keys():
+        if env_var in MASKED_ENV_VARS:
+            printed_env[env_var] = '****'
+
     logger.info('Running: command={cmd}, '
                 'cwd={cwd}, '
                 'additional_args={args}'.format(
                     cmd=command,
                     cwd=cwd,
-                    args=args_to_pass))
+                    args=printed_args))
 
     process = subprocess.Popen(
         args=command,
@@ -374,7 +385,7 @@ def update_terraform_source_material(new_source, target=False):
     # Zip the file to store in runtime
     terraform_source_zip = _zip_archive(source_tmp_path)
     base64_rep = _file_to_base64(terraform_source_zip)
-    ctx.logger.warn('The before base64_rep size is {size}.'.format(
+    ctx.logger.info('The before base64_rep size is {size}.'.format(
         size=len(base64_rep)))
 
     instance.runtime_properties['terraform_source'] = base64_rep
@@ -514,6 +525,7 @@ def remove_dir(folder, desc=''):
         ctx.logger.info('Removing {desc}: {dir}'.format(desc=desc, dir=folder))
         shutil.rmtree(folder)
     elif os.path.islink(folder):
+        ctx.logger.info('Unlinking: {}'.format(folder))
         os.unlink(folder)
     else:
         ctx.logger.info(
