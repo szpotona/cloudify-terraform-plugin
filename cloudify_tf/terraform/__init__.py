@@ -86,7 +86,7 @@ class Terraform(object):
         return self.execute(self._tf_command(['version']), True)
 
     def init(self, additional_args=None):
-        cmdline = ['init', '-no-color']
+        cmdline = ['init', '-no-color', '-input=false']
         if self.plugins_dir:
             cmdline.append('--plugin-dir=%s' % self.plugins_dir)
         command = self._tf_command(cmdline)
@@ -95,17 +95,19 @@ class Terraform(object):
         return self.execute(command)
 
     def destroy(self):
-        command = self._tf_command(['destroy', '-auto-approve', '-no-color'])
+        command = self._tf_command(['destroy', '-auto-approve', '-no-color',
+                                    '-input=false'])
         with self._vars_file(command):
             return self.execute(command)
 
     def plan(self):
-        command = self._tf_command(['plan', '-no-color'])
+        command = self._tf_command(['plan', '-no-color', '-input=false'])
         with self._vars_file(command):
             return self.execute(command)
 
     def apply(self):
-        command = self._tf_command(['apply', '-auto-approve', '-no-color'])
+        command = self._tf_command(['apply', '-auto-approve', '-no-color',
+                                    '-input=false'])
         with self._vars_file(command):
             return self.execute(command)
 
