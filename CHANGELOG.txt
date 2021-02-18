@@ -1,3 +1,5 @@
+0.15.2:
+    - Fix permission denied issue with installing terraform plugins.
 0.15.1:
     - Added '-input=false' to avoid indefinite hang in case of missing variables.
 0.14.4:
