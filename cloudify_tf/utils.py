@@ -564,7 +564,7 @@ def handle_plugins(plugins, plugins_dir, installation_dir):
                 url=plugin_url))
             download_file(plugin_zip.name, plugin_url)
             unzip_path = os.path.join(plugins_dir, plugin_name)
-            mkdir_p(os.path.basename(unzip_path))
+            mkdir_p(os.path.dirname(unzip_path))
             unzip_and_set_permissions(plugin_zip.name, unzip_path)
             os.remove(plugin_zip.name)
 
