@@ -15,12 +15,14 @@
 
 import os
 import copy
+import json
 import base64
 import ntpath
 import shutil
 import zipfile
 import filecmp
 import tempfile
+import requests
 import threading
 import subprocess
 from io import BytesIO
@@ -715,6 +717,22 @@ def refresh_resources_properties(state):
         for name, definition in module.get('resources', {}).items():
             resources[name] = definition
     ctx.instance.runtime_properties['resources'] = resources
+
+
+def is_url(string):
+    try:
+        return requests.get(string)
+    except requests.ConnectionError:
+        return False
+
+
+def handle_previous_source_format(source):
+    try:
+        return json.loads(source)
+    except json.decoder.JSONDecodeError:
+        if is_url(source):
+            return {'location': source}
+    return source
 
 
 # Stolen from the script plugin, until this class

@@ -21,7 +21,7 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
 
 from . import utils
-from ._compat import mkdir_p
+from ._compat import mkdir_p, text_type
 from .decorators import (
     with_terraform,
     skip_if_existing)
@@ -95,6 +95,8 @@ def reload_template(ctx, source, destroy_previous, **_):
     if not source:
         raise NonRecoverableError(
             "New source path/URL for Terraform template was not provided")
+
+    source = utils.handle_previous_source_format(source)
 
     if destroy_previous:
         with utils.get_terraform_source() as terraform_source:

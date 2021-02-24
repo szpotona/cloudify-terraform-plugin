@@ -19,7 +19,8 @@ import pytest
 
 from ecosystem_tests.dorkl import (
     basic_blueprint_test,
-    cleanup_on_failure, prepare_test
+    cleanup_on_failure, prepare_test,
+    executions_start
 )
 
 SECRETS_TO_CREATE = {
@@ -32,6 +33,9 @@ prepare_test(secrets=SECRETS_TO_CREATE)
 blueprint_list = [
     'examples/blueprint-examples/virtual-machine/aws-terraform.yaml']
 
+reload_url = 'https://github.com/cloudify-community/blueprint-examples/' \
+             'raw/master/virtual-machine/resources/terraform/template.zip'
+
 
 @pytest.fixture(scope='function', params=blueprint_list)
 def blueprint_examples(request):
@@ -40,6 +44,9 @@ def blueprint_examples(request):
         basic_blueprint_test(
             request.param, dirname_param,
             inputs='aws_region_name=us-east-1', timeout=3000)
+        executions_start('reload_terraform_template',
+                         dirname_param,
+                         params={'source': reload_url})
     except:
         cleanup_on_failure(dirname_param)
         raise
