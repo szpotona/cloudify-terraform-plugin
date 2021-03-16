@@ -15,6 +15,7 @@
 
 import unittest
 
+from ecosystem_tests.dorkl.runners import handle_uninstall_on_success
 from ecosystem_tests.dorkl import (cleanup_on_failure, executions_start)
 
 reload_url = 'https://github.com/cloudify-community/blueprint-examples/' \
@@ -32,3 +33,4 @@ class TestWorflow(unittest.TestCase):
         except:
             cleanup_on_failure('virtual-machine')
             raise
+        handle_uninstall_on_success('virtual-machine', 300)
