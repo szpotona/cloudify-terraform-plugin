@@ -96,6 +96,8 @@ def reload_template(ctx, source, destroy_previous, **_):
         raise NonRecoverableError(
             "New source path/URL for Terraform template was not provided")
 
+    source = utils.handle_previous_source_format(source)
+
     if destroy_previous:
         with utils.get_terraform_source() as terraform_source:
             _destroy(Terraform.from_ctx(ctx, terraform_source))

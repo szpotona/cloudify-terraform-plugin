@@ -13,37 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
 
-import os
-import pytest
+from ecosystem_tests.dorkl.runners import handle_uninstall_on_success
+from ecosystem_tests.dorkl import (cleanup_on_failure, executions_start)
 
-from ecosystem_tests.dorkl import (
-    basic_blueprint_test,
-    cleanup_on_failure, prepare_test
-)
-
-SECRETS_TO_CREATE = {
-    'aws_access_key_id': False,
-    'aws_secret_access_key': False,
-}
-
-prepare_test(secrets=SECRETS_TO_CREATE)
-
-blueprint_list = [
-    'examples/blueprint-examples/virtual-machine/aws-terraform.yaml']
+reload_url = 'https://github.com/cloudify-community/blueprint-examples/' \
+             'raw/master/virtual-machine/resources/terraform/template.zip'
 
 
-@pytest.fixture(scope='function', params=blueprint_list)
-def blueprint_examples(request):
-    dirname_param = os.path.dirname(request.param).split('/')[-1:][0]
-    try:
-        basic_blueprint_test(
-            request.param, dirname_param,
-            inputs='aws_region_name=us-east-1', timeout=3000)
-    except:
-        cleanup_on_failure(dirname_param)
-        raise
+class TestWorflow(unittest.TestCase):
 
-
-def test_blueprints(blueprint_examples):
-    assert blueprint_examples is None
+    def test_blueprint_examples(self):
+        try:
+            executions_start('reload_terraform_template',
+                             'virtual-machine',
+                             timeout=300,
+                             params={'source': reload_url})
+        except:
+            cleanup_on_failure('virtual-machine')
+            raise
+        handle_uninstall_on_success('virtual-machine', 300)
