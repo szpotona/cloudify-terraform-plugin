@@ -21,7 +21,7 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
 
 from . import utils
-from ._compat import mkdir_p, text_type
+from ._compat import mkdir_p
 from .decorators import (
     with_terraform,
     skip_if_existing)
