@@ -729,7 +729,7 @@ def is_url(string):
 def handle_previous_source_format(source):
     try:
         return json.loads(source)
-    except json.decoder.JSONDecodeError:
+    except ValueError:
         if is_url(source):
             return {'location': source}
     return source
