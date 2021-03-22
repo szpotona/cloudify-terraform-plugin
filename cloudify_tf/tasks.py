@@ -34,7 +34,12 @@ def apply(ctx, tf, **_):
     """
     Execute `terraform apply`.
     """
-    _apply(tf)
+    if ctx.workflow_id == 'update':
+        resource_config = utils.get_resource_config()
+        source = resource_config.get('source')
+        reload_template(source, destroy_previous=False, ctx=ctx, tf=tf)
+    else:
+        _apply(tf)
 
 
 def _apply(tf):
@@ -75,6 +80,9 @@ def destroy(ctx, tf, **_):
     Execute `terraform destroy`.
     """
     _destroy(tf)
+    ctx.instance.runtime_properties.pop('terraform_source', None)
+    ctx.instance.runtime_properties.pop('last_source_location', None)
+    ctx.instance.runtime_properties.pop('resource_config', None)
 
 
 def _destroy(tf):
@@ -102,14 +110,12 @@ def reload_template(source, destroy_previous, ctx, tf, **_):
     source = utils.handle_previous_source_format(source)
 
     if destroy_previous:
-        _destroy(tf)
-
-    # initialize new location to apply terraform
-    ctx.instance.runtime_properties.pop('terraform_source', None)
-    ctx.instance.runtime_properties.pop('last_source_location', None)
+        destroy(tf)
 
     with utils.update_terraform_source(source) as terraform_source:
         _apply(Terraform.from_ctx(ctx, terraform_source))
+        ctx.instance.runtime_properties['resource_config'] = \
+            utils.get_resource_config()
 
 
 @operation
