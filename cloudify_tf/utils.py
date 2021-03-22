@@ -130,7 +130,9 @@ def exclude_file(dirname, filename, excluded_files):
     for f in excluded_files:
         if not f:
             continue
-        if os.path.isfile(f) and rel_path == f:
+        elif os.path.isfile(f) and rel_path == f:
+            return True
+        elif os.path.isdir(f) and f in rel_path:
             return True
     return False
 
@@ -145,11 +147,15 @@ def exclude_dirs(dirname, subdirs, excluded_files):
         if not f:
             continue
         if os.path.isdir(f) and f in rel_subdirs:
-            subdirs.remove(ntpath.basename(f))
+            try:
+                subdirs.remove(ntpath.basename(f))
+            except ValueError:
+                pass
 
 
 def _zip_archive(extracted_source, exclude_files=None, **_):
-    """Zip up a folder and all its sub-folders.
+    """Zip up a folder and all its sub-folders,
+    except for those that we wish to exclude.
 
     :param extracted_source: The location.
     :param exclude_files: A list of files and directories, that we don't
@@ -167,17 +173,23 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
                              mode='w',
                              compression=zipfile.ZIP_DEFLATED) as output_file:
             for dir_name, subdirs, filenames in os.walk(extracted_source):
+                # Make sure that the files that we don't want
+                # to include (e.g. plugins directory) will not be archived.
                 exclude_dirs(dir_name, subdirs, exclude_files)
                 for filename in filenames:
+                    # Extra layer of validation on the excluded files.
                     if not exclude_file(dir_name, filename, exclude_files):
+                        # Create the path as we want to archive it to the
+                        # archivee.
                         file_to_add = os.path.join(dir_name, filename)
+                        # The name of the file in the archive.
                         arc_name = file_to_add[len(extracted_source)+1:]
                         output_file.write(file_to_add, arcname=arc_name)
-        arhcive_file_path = updated_zip.name
-    return arhcive_file_path
+        archive_file_path = updated_zip.name
+    return archive_file_path
 
 
-def _unzip_archive(archive_path, storage_path, source_path=None, **_):
+def _unzip_archive(archive_path, target_directory, source_path=None, **_):
     """
     Unzip a zip archive.
     """
@@ -185,20 +197,27 @@ def _unzip_archive(archive_path, storage_path, source_path=None, **_):
     # Create a temporary directory.
     # Create a zip archive object.
     # Extract the object.
-    directory_to_extract_to = storage_path
+    target_directory = target_directory if \
+        target_directory.endswith('/') else target_directory + '/'
+
+    if source_path:
+        if not source_path.endswith('/'):
+            source_path = source_path + '/'
+
+    ctx.logger.debug('Extracting {a} {b} to {c}'.format(
+        a=archive_path, b=source_path, c=target_directory))
+
     with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        if source_path:
-            if not source_path.endswith('/'):
-                source_path = source_path + '/'
-            for p in zip_ref.namelist():
-                if source_path in p:
-                    zip_ref.extract(p, directory_to_extract_to)
-                    os.rename(os.path.join(directory_to_extract_to, p),
-                              os.path.join(directory_to_extract_to,
-                                           ntpath.basename(p)))
-        else:
-            zip_ref.extractall(directory_to_extract_to)
-    return directory_to_extract_to
+        for p in zip_ref.namelist():
+            if source_path in p:
+                zip_ref.extract(p, target_directory)
+                reset_source = os.path.join(target_directory, p)
+                reset_target = os.path.join(
+                    target_directory, ntpath.basename(p))
+                os.rename(reset_source, reset_target)
+            else:
+                zip_ref.extractall(target_directory)
+    return target_directory
 
 
 def clean_strings(string):
@@ -351,28 +370,35 @@ def install_binary(
 
 def get_resource_config(target=False):
     """Get the cloudify.nodes.terraform.Module resource_config"""
+    ctx.logger.debug('Getting resource config.')
     instance = get_instance(target=target)
     resource_config = instance.runtime_properties.get('resource_config')
     if resource_config:
+        ctx.logger.debug('Retrieved resource config from runtime properties.')
         return resource_config
     node = get_node(target=target)
+    ctx.logger.debug('Retrieved resource config from node properties.')
     return node.properties.get('resource_config', {})
 
 
 def get_terraform_config(target=False):
     """get the cloudify.nodes.terraform or cloudify.nodes.terraform.Module
     terraform_config"""
+    ctx.logger.debug('Getting terraform config.')
     instance = get_instance(target=target)
     terraform_config = instance.runtime_properties.get('terraform_config')
     if terraform_config:
+        ctx.logger.debug('Retrieved terraform config from runtime properties.')
         return terraform_config
     node = get_node(target=target)
+    ctx.logger.debug('Retrieved terraform config from node properties.')
     return node.properties.get('terraform_config', {})
 
 
 def update_terraform_source_material(new_source, target=False):
     """Replace the terraform_source material with a new material.
     This is used in terraform.reload_template operation."""
+    ctx.logger.debug('Updating source material.')
     instance = get_instance(target=target)
     new_source_location = new_source['location']
     source_tmp_path = get_shared_resource(
@@ -395,6 +421,8 @@ def update_terraform_source_material(new_source, target=False):
 
     instance.runtime_properties['terraform_source'] = base64_rep
     instance.runtime_properties['last_source_location'] = new_source_location
+    ctx.logger.debug('Updated source material {l}.'.format(
+        l=new_source_location))
     instance.update()
     return base64_rep
 
@@ -405,9 +433,12 @@ def get_terraform_source_material(target=False):
     However, during the install workflow, this might also be the binary
     data of a zip archive of just the plan files.
     """
+    ctx.logger.debug('Getting Terraform source material.')
     instance = get_instance(target=target)
     source = instance.runtime_properties.get('terraform_source')
     if source:
+        ctx.logger.debug('Retrieved terraform source material'
+                         ' from runtime properties.')
         return source
     resource_config = get_resource_config(target=target)
     source = resource_config.get('source')
@@ -465,12 +496,6 @@ def get_storage_path(target=False):
         raise NonRecoverableError(
             'The property resource_config.storage_path '
             'is no longer supported.')
-    # if os.path.exists(storage_path) and not os.path.isdir(storage_path):
-    #     raise NonRecoverableError(
-    #         'The provided storage_path {loc} already exists '
-    #         'and is not a directory.'.format(loc=storage_path))
-    # elif not os.path.isdir(storage_path):
-    #     os.makedirs(storage_path)
     ctx.logger.debug('Value storage_path is {loc}.'.format(
         loc=deployment_dir))
     instance = get_instance(target=target)
@@ -595,14 +620,13 @@ def extract_binary_tf_data(root_dir, data, source_path):
     _unzip_archive(terraform_source_zip, root_dir, source_path)
     ctx.logger.info('module_root: {loc}'.format(loc=root_dir))
     os.remove(terraform_source_zip)
-    extracted_files = os.listdir(root_dir)
-    ctx.logger.info('Extracted terraform source files {files}'.format(
-        files=extracted_files))
 
 
 @contextmanager
 def get_terraform_source():
-    """Get the stored terraform resource template source"""
+    """Get the JSON/TF files material for the Terraform template.
+    Dump in in the file yielded by _yield_terraform_source
+    """
     material = get_terraform_source_material()
     return _yield_terraform_source(material)
 
@@ -620,9 +644,9 @@ def _yield_terraform_source(material):
     and then store it again for later use.
     """
     module_root = get_storage_path()
+    handle_backend(module_root)
     source_path = get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
-    handle_backend(module_root)
     try:
         yield get_node_instance_dir()
     finally:
@@ -631,13 +655,16 @@ def _yield_terraform_source(material):
         archived_file = _zip_archive(
             module_root,
             exclude_files=[get_executable_path(),
-                           get_plugins_dir(),
-                           os.path.join(get_storage_path(), '.terraform')])
+                           get_plugins_dir()])
+        # Convert the zip archive into base64 for storage in runtime
+        # properties.
         base64_rep = _file_to_base64(archived_file)
         os.remove(archived_file)
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
         ctx.instance.runtime_properties['terraform_source'] = base64_rep
+        ctx.instance.runtime_properties['resource_config'] = \
+            get_resource_config()
 
 
 def get_node_instance_dir(target=False, source=False):
@@ -727,6 +754,8 @@ def is_url(string):
 
 
 def handle_previous_source_format(source):
+    if isinstance(source, dict):
+        return source
     try:
         return json.loads(source)
     except ValueError:

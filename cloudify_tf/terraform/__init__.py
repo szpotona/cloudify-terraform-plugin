@@ -92,7 +92,8 @@ class Terraform(object):
         command = self._tf_command(cmdline)
         if additional_args:
             command.extend(additional_args)
-        return self.execute(command)
+        with self._vars_file(command):
+            return self.execute(command)
 
     def destroy(self):
         command = self._tf_command(['destroy', '-auto-approve', '-no-color',
