@@ -79,6 +79,8 @@ def destroy(ctx, tf, **_):
 
 def _destroy(tf):
     try:
+        tf.init()
+        tf.plan()
         tf.destroy()
     except Exception as ex:
         _, _, tb = sys.exc_info()
@@ -88,7 +90,8 @@ def _destroy(tf):
 
 
 @operation
-def reload_template(ctx, source, destroy_previous, **_):
+@with_terraform
+def reload_template(source, destroy_previous, ctx, tf, **_):
     """
     Terraform reload plan given new location as input
     """
@@ -99,8 +102,7 @@ def reload_template(ctx, source, destroy_previous, **_):
     source = utils.handle_previous_source_format(source)
 
     if destroy_previous:
-        with utils.get_terraform_source() as terraform_source:
-            _destroy(Terraform.from_ctx(ctx, terraform_source))
+        _destroy(tf)
 
     # initialize new location to apply terraform
     ctx.instance.runtime_properties.pop('terraform_source', None)

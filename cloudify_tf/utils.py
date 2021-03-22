@@ -130,7 +130,9 @@ def exclude_file(dirname, filename, excluded_files):
     for f in excluded_files:
         if not f:
             continue
-        if os.path.isfile(f) and rel_path == f:
+        elif os.path.isfile(f) and rel_path == f:
+            return True
+        elif os.path.isdir(f) and f in rel_path:
             return True
     return False
 
@@ -145,7 +147,10 @@ def exclude_dirs(dirname, subdirs, excluded_files):
         if not f:
             continue
         if os.path.isdir(f) and f in rel_subdirs:
-            subdirs.remove(ntpath.basename(f))
+            try:
+                subdirs.remove(ntpath.basename(f))
+            except ValueError:
+                pass
 
 
 def _zip_archive(extracted_source, exclude_files=None, **_):
@@ -173,11 +178,11 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
                         file_to_add = os.path.join(dir_name, filename)
                         arc_name = file_to_add[len(extracted_source)+1:]
                         output_file.write(file_to_add, arcname=arc_name)
-        arhcive_file_path = updated_zip.name
-    return arhcive_file_path
+        archive_file_path = updated_zip.name
+    return archive_file_path
 
 
-def _unzip_archive(archive_path, storage_path, source_path=None, **_):
+def _unzip_archive(archive_path, target_directory, source_path=None, **_):
     """
     Unzip a zip archive.
     """
@@ -185,20 +190,29 @@ def _unzip_archive(archive_path, storage_path, source_path=None, **_):
     # Create a temporary directory.
     # Create a zip archive object.
     # Extract the object.
-    directory_to_extract_to = storage_path
+    target_directory = target_directory if \
+        target_directory.endswith('/') else target_directory + '/'
+
+    if source_path:
+        if not source_path.endswith('/'):
+            source_path = source_path + '/'
+
+    ctx.logger.debug('Extracting {a} {b} to {c}'.format(
+        a=archive_path, b=source_path, c=target_directory))
+
     with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        if source_path:
-            if not source_path.endswith('/'):
-                source_path = source_path + '/'
-            for p in zip_ref.namelist():
-                if source_path in p:
-                    zip_ref.extract(p, directory_to_extract_to)
-                    os.rename(os.path.join(directory_to_extract_to, p),
-                              os.path.join(directory_to_extract_to,
-                                           ntpath.basename(p)))
-        else:
-            zip_ref.extractall(directory_to_extract_to)
-    return directory_to_extract_to
+        for p in zip_ref.namelist():
+            if source_path in p:
+                zip_ref.extract(p, target_directory)
+                reset_source = os.path.join(target_directory, p)
+                reset_target = os.path.join(
+                    target_directory, ntpath.basename(p))
+                os.rename(reset_source, reset_target)
+            else:
+                ctx.logger.debug('Extracting all: {t}.'.format(
+                    t=target_directory))
+                zip_ref.extractall(target_directory)
+    return target_directory
 
 
 def clean_strings(string):
@@ -595,9 +609,6 @@ def extract_binary_tf_data(root_dir, data, source_path):
     _unzip_archive(terraform_source_zip, root_dir, source_path)
     ctx.logger.info('module_root: {loc}'.format(loc=root_dir))
     os.remove(terraform_source_zip)
-    extracted_files = os.listdir(root_dir)
-    ctx.logger.info('Extracted terraform source files {files}'.format(
-        files=extracted_files))
 
 
 @contextmanager
@@ -620,9 +631,9 @@ def _yield_terraform_source(material):
     and then store it again for later use.
     """
     module_root = get_storage_path()
+    handle_backend(module_root)
     source_path = get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
-    handle_backend(module_root)
     try:
         yield get_node_instance_dir()
     finally:
@@ -631,8 +642,7 @@ def _yield_terraform_source(material):
         archived_file = _zip_archive(
             module_root,
             exclude_files=[get_executable_path(),
-                           get_plugins_dir(),
-                           os.path.join(get_storage_path(), '.terraform')])
+                           get_plugins_dir()])
         base64_rep = _file_to_base64(archived_file)
         os.remove(archived_file)
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
