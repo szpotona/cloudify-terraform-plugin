@@ -745,7 +745,7 @@ def refresh_resources_properties(state, output):
         for name, definition in module.get('resources', {}).items():
             resources[name] = definition
     ctx.instance.runtime_properties['resources'] = resources
-    ctx.instance.runtime_properties['output'] = output
+    ctx.instance.runtime_properties['outputs'] = output
 
 
 def is_url(string):
