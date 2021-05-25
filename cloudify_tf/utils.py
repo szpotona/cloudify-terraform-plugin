@@ -210,15 +210,18 @@ def _unzip_archive(archive_path, target_directory, source_path=None, **_):
         a=archive_path, b=source_path, c=target_directory))
 
     with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        for p in zip_ref.namelist():
-            if source_path in p:
-                zip_ref.extract(p, target_directory)
-                reset_source = os.path.join(target_directory, p)
+        for info in zip_ref.infolist():
+            if source_path in info.filename:
+                zip_ref.extract(info.filename, target_directory)
+                reset_source = os.path.join(target_directory, info.filename)
                 reset_target = os.path.join(
-                    target_directory, ntpath.basename(p))
+                    target_directory, ntpath.basename(info.filename))
                 os.rename(reset_source, reset_target)
             else:
-                zip_ref.extractall(target_directory)
+                zip_ref.extract(info.filename, path=target_directory)
+                reset_target = os.path.join(target_directory, info.filename)
+            if info.external_attr >> 16 > 0:
+                os.chmod(reset_target, info.external_attr >> 16)
 
     return target_directory
 

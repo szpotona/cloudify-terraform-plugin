@@ -1,3 +1,5 @@
+0.16.1:
+    - RD-2456-Preserve-TF-File-Permissions
 0.16.0:
     - Add pull operation and save resources drifts under runtime properties.
 0.15.5:
