@@ -319,7 +319,6 @@ workflows:
   tests:
     jobs:
       - py3_compat
-      - unittests_py27
       - unittests_py36
       - wagon:
           filters:
@@ -347,7 +346,6 @@ workflows:
             branches:
               only: /master/
           requires:
-            - unittests_py27
             - unittests_py36
             - wagon
             - rhel_wagon
@@ -362,7 +360,6 @@ workflows:
               - master
     jobs:
       - py3_compat
-      - unittests_py27
       - unittests_py36
       - wagon:
           filters:

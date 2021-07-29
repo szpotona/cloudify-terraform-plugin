@@ -741,8 +741,9 @@ def create_backend_string(name, options):
     return 'terraform {\n%s\n}' % backend_block
 
 
-def refresh_resources_properties(state):
-    """Store all the resources that we created as JSON in the context."""
+def refresh_resources_properties(state, output):
+    """Store all the resources (state and output) that we created as JSON
+       in the context."""
     resources = {}
     for resource in state.get('resources', []):
         resources[resource[NAME]] = resource
@@ -752,6 +753,7 @@ def refresh_resources_properties(state):
     ctx.instance.runtime_properties['resources'] = resources
     # Duplicate for backward compatibility.
     ctx.instance.runtime_properties[STATE] = resources
+    ctx.instance.runtime_properties['outputs'] = output
 
 
 def refresh_resources_drifts_properties(plan_json):

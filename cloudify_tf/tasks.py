@@ -47,11 +47,14 @@ def _apply(tf):
         tf.init()
         tf.plan()
         tf.apply()
+        tf_state = tf.state_pull()
+        tf_output = tf.output()
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
             "Failed applying",
             causes=[exception_to_error_cause(ex, tb)])
+    utils.refresh_resources_properties(tf_state, tf_output)
 
 
 @operation
@@ -68,12 +71,13 @@ def _state_pull(tf):
         tf.refresh()
         tf_state = tf.state_pull()
         plan_json = tf.plan_and_show()
+        tf_output = tf.output()
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
             "Failed pulling state",
             causes=[exception_to_error_cause(ex, tb)])
-    utils.refresh_resources_properties(tf_state)
+    utils.refresh_resources_properties(tf_state, tf_output)
     utils.refresh_resources_drifts_properties(plan_json)
 
 
