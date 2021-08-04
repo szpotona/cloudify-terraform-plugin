@@ -14,9 +14,3 @@
 # limitations under the License.
 
 # TODO: Get a better way of setting backends.
-TERRAFORM_BACKEND = \
-    """
-  backend "%s" {
-%s
-  }
-"""

@@ -26,6 +26,7 @@ import requests
 import threading
 import subprocess
 from io import BytesIO
+from pathlib import Path
 from contextlib import contextmanager
 
 from cloudify import ctx
@@ -42,16 +43,16 @@ except ImportError:
     NODE_INSTANCE = 'node-instance'
     RELATIONSHIP_INSTANCE = 'relationship-instance'
 
-from . import TERRAFORM_BACKEND
-from .constants import IS_DRIFTED, DRIFTS, STATE, NAME
+from .constants import (
+    NAME,
+    STATE,
+    DRIFTS,
+    IS_DRIFTED,
+    MASKED_ENV_VARS,
+    TERRAFORM_BACKEND,
+    TERRAFORM_STATE_FILE
+)
 from ._compat import text_type, StringIO, PermissionDenied, mkdir_p
-
-TERRAFORM_STATE_FILE = 'terraform.tfstate'
-
-MASKED_ENV_VARS = {
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY'
-}
 
 
 def download_file(source, destination):
@@ -155,6 +156,28 @@ def exclude_dirs(dirname, subdirs, excluded_files):
                 pass
 
 
+def file_storage_breaker(filepath):
+    filesize = Path(filepath).stat().st_size
+    if filesize > 50000:
+        max_stored_filesize = get_node().properties.get(
+            'max_stored_filesize', 500000)
+        if filesize >= max_stored_filesize:
+            ctx.logger.warn(
+                'The file {f} exceeds max file size {s} '
+                'set in the max_stored_filesize property: {m}'
+                .format(f=filepath, s=filesize, m=max_stored_filesize))
+            return True
+    elif '.terraform/plugins' in filepath:
+        store_plugins_dir = get_node().properties.get(
+            'store_plugins_dir', False)
+        if not store_plugins_dir:
+            ctx.logger.warn(
+                'Not preserving file {f}, '
+                'because it is in plugins directory.'.format(f=filepath))
+            return True
+    return False
+
+
 def _zip_archive(extracted_source, exclude_files=None, **_):
     """Zip up a folder and all its sub-folders,
     except for those that we wish to exclude.
@@ -165,9 +188,9 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
     :param _:
     :return:
     """
+    ctx.logger.debug("Zipping source {source}".format(source=extracted_source))
     exclude_files = exclude_files or []
     ctx.logger.debug('Excluding files {l}'.format(l=exclude_files))
-    ctx.logger.debug("Zipping {source}".format(source=extracted_source))
     with tempfile.NamedTemporaryFile(suffix=".zip",
                                      delete=False) as updated_zip:
         updated_zip.close()
@@ -185,10 +208,28 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
                         # archivee.
                         file_to_add = os.path.join(dir_name, filename)
                         # The name of the file in the archive.
+                        if file_storage_breaker(file_to_add):
+                            continue
                         arc_name = file_to_add[len(extracted_source)+1:]
                         output_file.write(file_to_add, arcname=arc_name)
         archive_file_path = updated_zip.name
     return archive_file_path
+
+
+def copytree(src, dst):
+    ctx.logger.debug('Copying {src} to {dst}.'.format(src=src, dst=dst))
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.exists(d):
+            continue
+        elif os.path.isdir(s):
+            try:
+                shutil.copytree(s, d)
+            except OSError:
+                shutil.move(s, d)
+        else:
+            shutil.copy2(s, d)
 
 
 def _unzip_archive(archive_path, target_directory, source_path=None, **_):
@@ -199,30 +240,11 @@ def _unzip_archive(archive_path, target_directory, source_path=None, **_):
     # Create a temporary directory.
     # Create a zip archive object.
     # Extract the object.
-    target_directory = target_directory if \
-        target_directory.endswith('/') else target_directory + '/'
+    ctx.logger.debug('Unzipping {src} to {dst}.'.format(
+        src=archive_path, dst=target_directory))
 
-    if source_path:
-        if not source_path.endswith('/'):
-            source_path = source_path + '/'
-
-    ctx.logger.debug('Extracting {a} {b} to {c}'.format(
-        a=archive_path, b=source_path, c=target_directory))
-
-    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        for info in zip_ref.infolist():
-            if source_path in info.filename:
-                zip_ref.extract(info.filename, target_directory)
-                reset_source = os.path.join(target_directory, info.filename)
-                reset_target = os.path.join(
-                    target_directory, ntpath.basename(info.filename))
-                os.rename(reset_source, reset_target)
-            else:
-                zip_ref.extract(info.filename, path=target_directory)
-                reset_target = os.path.join(target_directory, info.filename)
-            if info.external_attr >> 16 > 0:
-                os.chmod(reset_target, info.external_attr >> 16)
-
+    src = unzip_archive(archive_path)
+    copytree(src, target_directory)
     return target_directory
 
 
@@ -255,10 +277,13 @@ def _create_source_path(source_tmp_path):
         file_type = file_name.rsplit('.', 1)[1]
         # check type
         if file_type == 'zip':
-            return unzip_archive(source_tmp_path)
+            unzipped_source = unzip_archive(source_tmp_path)
+            os.remove(source_tmp_path)
+            source_tmp_path = unzipped_source
         elif file_type in TAR_FILE_EXTENSTIONS:
-            return untar_archive(source_tmp_path)
-
+            unzipped_source = untar_archive(source_tmp_path)
+            os.remove(source_tmp_path)
+            source_tmp_path = unzipped_source
     return source_tmp_path
 
 
@@ -271,8 +296,6 @@ def set_permissions(target_file):
 
 def unzip_and_set_permissions(zip_file, target_dir):
     """Unzip a file and fix permissions on the files."""
-    ctx.logger.debug('Unzipping into {dir}.'.format(dir=target_dir))
-
     with zipfile.ZipFile(zip_file, 'r') as zip_ref:
         for name in zip_ref.namelist():
             try:
@@ -374,45 +397,42 @@ def install_binary(
     return executable_path
 
 
+def update_resource_config(new_values, target=False):
+    instance = get_instance(target=target)
+    resource_config = get_resource_config(target=target)
+    resource_config.update(new_values)
+    instance.runtime_properties['resource_config'] = resource_config
+
+
 def get_resource_config(target=False):
     """Get the cloudify.nodes.terraform.Module resource_config"""
-    ctx.logger.debug('Getting resource config.')
     instance = get_instance(target=target)
     resource_config = instance.runtime_properties.get('resource_config')
-    if resource_config:
-        ctx.logger.debug('Retrieved resource config from runtime properties.')
-        return resource_config
-    node = get_node(target=target)
-    ctx.logger.debug('Retrieved resource config from node properties.')
-    return node.properties.get('resource_config', {})
+    if not resource_config:
+        node = get_node(target=target)
+        resource_config = node.properties.get('resource_config', {})
+    return resource_config
 
 
 def get_terraform_config(target=False):
     """get the cloudify.nodes.terraform or cloudify.nodes.terraform.Module
     terraform_config"""
-    ctx.logger.debug('Getting terraform config.')
     instance = get_instance(target=target)
     terraform_config = instance.runtime_properties.get('terraform_config')
     if terraform_config:
-        ctx.logger.debug('Retrieved terraform config from runtime properties.')
         return terraform_config
     node = get_node(target=target)
-    ctx.logger.debug('Retrieved terraform config from node properties.')
     return node.properties.get('terraform_config', {})
 
 
 def update_terraform_source_material(new_source, target=False):
     """Replace the terraform_source material with a new material.
     This is used in terraform.reload_template operation."""
-    ctx.logger.debug('Updating source material.')
-    instance = get_instance(target=target)
     new_source_location = new_source['location']
     source_tmp_path = get_shared_resource(
         new_source_location, dir=get_node_instance_dir(target=target),
         username=new_source.get('username'),
         password=new_source.get('password'))
-    ctx.logger.debug('The shared resource path is {loc}'.format(
-        loc=source_tmp_path))
 
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
@@ -421,16 +441,7 @@ def update_terraform_source_material(new_source, target=False):
     # By getting here we will have extracted source
     # Zip the file to store in runtime
     terraform_source_zip = _zip_archive(source_tmp_path)
-    base64_rep = _file_to_base64(terraform_source_zip)
-    ctx.logger.info('The before base64_rep size is {size}.'.format(
-        size=len(base64_rep)))
-
-    instance.runtime_properties['terraform_source'] = base64_rep
-    instance.runtime_properties['last_source_location'] = new_source_location
-    ctx.logger.debug('Updated source material {l}.'.format(
-        l=new_source_location))
-    instance.update()
-    return base64_rep
+    return _file_to_base64(terraform_source_zip)
 
 
 def get_terraform_source_material(target=False):
@@ -439,16 +450,13 @@ def get_terraform_source_material(target=False):
     However, during the install workflow, this might also be the binary
     data of a zip archive of just the plan files.
     """
-    ctx.logger.debug('Getting Terraform source material.')
     instance = get_instance(target=target)
     source = instance.runtime_properties.get('terraform_source')
-    if source:
-        ctx.logger.debug('Retrieved terraform source material'
-                         ' from runtime properties.')
-        return source
-    resource_config = get_resource_config(target=target)
-    source = resource_config.get('source')
-    return update_terraform_source_material(source, target=target)
+    if not source:
+        resource_config = get_resource_config(target=target)
+        source = update_terraform_source_material(
+            resource_config.get('source'), target=target)
+    return source
 
 
 def get_installation_source(target=False):
@@ -485,8 +493,6 @@ def get_executable_path(target=False):
         terraform_config = node.properties.get('terraform_config', {})
         executable_path = terraform_config.get('executable_path')
     instance.runtime_properties['executable_path'] = executable_path
-    ctx.logger.debug('Value executable_path is {loc}.'.format(
-        loc=executable_path))
     return executable_path
 
 
@@ -502,8 +508,6 @@ def get_storage_path(target=False):
         raise NonRecoverableError(
             'The property resource_config.storage_path '
             'is no longer supported.')
-    ctx.logger.debug('Value storage_path is {loc}.'.format(
-        loc=deployment_dir))
     instance = get_instance(target=target)
     instance.runtime_properties['storage_path'] = deployment_dir
     instance.update()
@@ -517,6 +521,9 @@ def get_plugins_dir(target=False):
     """
     resource_config = get_resource_config(target=target)
     storage_path = get_storage_path(target=target)
+    source_path = get_source_path(target=target)
+    if source_path:
+        storage_path = os.path.join(storage_path, source_path)
     plugins_dir = resource_config.get(
         'plugins_dir',
         os.path.join(storage_path, '.terraform', 'plugins'))
@@ -525,8 +532,6 @@ def get_plugins_dir(target=False):
             'Terraform plugins directory {plugins} '
             'must be a subdirectory of the storage_path {storage}.'.format(
                 plugins=plugins_dir, storage=storage_path))
-    ctx.logger.debug('Value plugins_dir is {loc}.'.format(
-        loc=plugins_dir))
     return plugins_dir
 
 
@@ -538,7 +543,20 @@ def get_plugins(target=False):
 
 def get_source_path(target=False):
     resource_config = get_resource_config(target=target)
-    return resource_config.get('source_path')
+    source_path = resource_config.get('source_path')
+    source = resource_config.get('source', {})
+    if 'source_path' in source:
+        source_path = source['source_path']
+    return source_path
+
+
+def update_source_path(source_path=None):
+    resource_config = get_resource_config()
+    source = resource_config.get('source', {})
+    resource_config['source_path'] = source_path
+    source.update({'source_path': source_path})
+    resource_config['source'] = source
+    return resource_config
 
 
 def create_plugins_dir(plugins_dir=None):
@@ -612,7 +630,6 @@ def handle_backend(root_dir):
             root_dir, '{0}.tf'.format(backend['name']))
         with open(backend_file_path, 'w') as infile:
             infile.write(backend_string)
-    ctx.logger.debug('Extracted Terraform files: {loc}'.format(loc=root_dir))
 
 
 def extract_binary_tf_data(root_dir, data, source_path):
@@ -624,7 +641,6 @@ def extract_binary_tf_data(root_dir, data, source_path):
     # By getting here, "terraform_source_zip" is the path
     #  to a ZIP file containing the Terraform files.
     _unzip_archive(terraform_source_zip, root_dir, source_path)
-    ctx.logger.info('module_root: {loc}'.format(loc=root_dir))
     os.remove(terraform_source_zip)
 
 
@@ -654,7 +670,7 @@ def _yield_terraform_source(material):
     source_path = get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
     try:
-        yield get_node_instance_dir()
+        yield get_node_instance_dir(source_path=source_path)
     finally:
         ctx.logger.debug('Re-packaging Terraform files from {loc}'.format(
             loc=module_root))
@@ -673,7 +689,7 @@ def _yield_terraform_source(material):
             get_resource_config()
 
 
-def get_node_instance_dir(target=False, source=False):
+def get_node_instance_dir(target=False, source=False, source_path=None):
     """This is the place where the magic happens.
     We put all our binaries, templates, or symlinks to those files here,
     and then we also run all executions from here.
@@ -683,6 +699,8 @@ def get_node_instance_dir(target=False, source=False):
         get_deployment_dir(ctx.deployment.id),
         instance.id
     )
+    if source_path:
+        folder = os.path.join(folder, source_path)
     if not os.path.exists(folder):
         mkdir_p(folder)
     ctx.logger.debug('Value deployment_dir is {loc}.'.format(
@@ -695,20 +713,19 @@ def get_terraform_state_file(ctx):
     terraform.refresh_resources operations and it's possible we can
     get rid of it.
     """
-    state_file_path = os.path.join(get_storage_path(), TERRAFORM_STATE_FILE)
-
-    encoded_source = get_terraform_source_material()
+    ctx.logger.info('Getting TF statefile.')
     storage_path = get_storage_path()
+    state_file_path = os.path.join(storage_path, TERRAFORM_STATE_FILE)
+    encoded_source = get_terraform_source_material()
     source_path = get_source_path()
 
-    with tempfile.NamedTemporaryFile(delete=False) as f:
+    # with tempfile.NamedTemporaryFile(delete=False) as f:
+    with tempfile.NamedTemporaryFile() as f:
         base64.decode(StringIO(encoded_source), f)
-        terraform_source_zip = f.name
-
-    extracted_source = _unzip_archive(terraform_source_zip,
-                                      storage_path,
-                                      source_path)
-    os.remove(terraform_source_zip)
+        extracted_source = _unzip_archive(f.name,
+                                          storage_path,
+                                          source_path)
+    # update_source_path()
 
     for dir_name, subdirs, filenames in os.walk(extracted_source):
         for filename in filenames:

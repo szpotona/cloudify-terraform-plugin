@@ -218,8 +218,11 @@ def set_directory_config(ctx, **_):
 
         ctx.logger.info('Creating link {src} {dst}'.format(
             src=deployment_terraform_dir, dst=resource_terraform_dir))
-        os.symlink(deployment_terraform_dir, resource_terraform_dir)
-
+        try:
+            os.symlink(deployment_terraform_dir, resource_terraform_dir)
+        except OSError:
+            ctx.logger.warn('Unable to link {src} {dst}'.format(
+                src=deployment_terraform_dir, dst=resource_terraform_dir))
     ctx.logger.info("setting executable_path to {path}".format(
         path=exc_path))
     ctx.logger.info("setting plugins_dir to {dir}".format(
