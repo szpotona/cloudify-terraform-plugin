@@ -1,3 +1,5 @@
+0.16.3:
+    - RD-2915: TF Flattens Dir
 0.16.2:
     - Add terraform output handling.
 0.16.1:
