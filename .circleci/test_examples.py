@@ -18,8 +18,8 @@ import unittest
 from ecosystem_tests.dorkl.runners import handle_uninstall_on_success
 from ecosystem_tests.dorkl import (cleanup_on_failure, executions_start)
 
-reload_url = 'https://github.com/cloudify-community/blueprint-examples/' \
-             'raw/master/virtual-machine/resources/terraform/template.zip'
+reload_url = 'https://github.com/cloudify-community/' \
+             'tf-source/archive/refs/heads/main.zip'
 
 
 class TestWorflow(unittest.TestCase):
@@ -29,7 +29,10 @@ class TestWorflow(unittest.TestCase):
             executions_start('reload_terraform_template',
                              'virtual-machine',
                              timeout=300,
-                             params={'source': reload_url})
+                             params={
+                                 'source': reload_url,
+                                 'source_path': 'template/modules/private_vm'
+                             })
         except:
             cleanup_on_failure('virtual-machine')
             raise

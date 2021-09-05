@@ -3,7 +3,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.16.3'
+    package_version: '0.16.4'
 
 dsl_definitions:
 
@@ -212,7 +212,10 @@ workflows:
       <<: *terraform_workflow_params
       source:
         type: string
-        default: ""
+        default: ''
+      source_path:
+        type: string
+        default: ''
       destroy_previous:
         type: boolean
         default: false

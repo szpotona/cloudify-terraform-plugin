@@ -47,10 +47,11 @@ def refresh_resources(ctx, node_ids, node_instance_ids):
 
 
 def reload_resources(ctx, node_ids, node_instance_ids,
-                     source, destroy_previous):
+                     source, source_path, destroy_previous):
     kwargs = dict(destroy_previous=destroy_previous)
     if source:
         kwargs['source'] = source
+        kwargs['source_path'] = source_path
     _terraform_operation(
         ctx,
         "terraform.reload",

@@ -109,7 +109,7 @@ def _destroy(tf):
 
 @operation
 @with_terraform
-def reload_template(source, destroy_previous, ctx, tf, **_):
+def reload_template(source, source_path, destroy_previous, ctx, tf, **_):
     """
     Terraform reload plan given new location as input
     """

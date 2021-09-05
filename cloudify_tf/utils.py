@@ -654,20 +654,20 @@ def get_terraform_source():
 
 
 @contextmanager
-def update_terraform_source(new_source):
+def update_terraform_source(new_source, new_source_path=None):
     """Replace the stored terraform resource template data"""
     material = update_terraform_source_material(new_source)
-    return _yield_terraform_source(material)
+    return _yield_terraform_source(material, new_source_path)
 
 
-def _yield_terraform_source(material):
+def _yield_terraform_source(material, source_path=None):
     """Put all the TF resource template data into the work directory,
     let the operations do all their magic,
     and then store it again for later use.
     """
     module_root = get_storage_path()
     handle_backend(module_root)
-    source_path = get_source_path()
+    source_path = source_path or get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
     try:
         yield get_node_instance_dir(source_path=source_path)
@@ -687,6 +687,9 @@ def _yield_terraform_source(material):
         ctx.instance.runtime_properties['terraform_source'] = base64_rep
         ctx.instance.runtime_properties['resource_config'] = \
             get_resource_config()
+        if source_path:
+            ctx.instance.runtime_properties['resource_config'][
+                'source_path'] = source_path
 
 
 def get_node_instance_dir(target=False, source=False, source_path=None):
@@ -799,14 +802,20 @@ def refresh_resources_drifts_properties(plan_json):
 
 def is_url(string):
     try:
-        return requests.get(string)
+        result = requests.get(string)
     except requests.ConnectionError:
         return False
+    if result.status_code == 404:
+        ctx.logger.warn('The source {source} is a valid URL, '
+                        'but is not found.'.format(source=string))
+    return True
 
 
 def handle_previous_source_format(source):
     if isinstance(source, dict):
         return source
+    elif isinstance(source, str) and is_url(source):
+        return {'location': source}
     try:
         return json.loads(source)
     except ValueError:

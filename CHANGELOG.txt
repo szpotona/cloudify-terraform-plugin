@@ -1,3 +1,5 @@
+0.16.4:
+    - RD-3109: Fix Issue In Reload Template
 0.16.3:
     - RD-2915: TF Flattens Dir
 0.16.2:
