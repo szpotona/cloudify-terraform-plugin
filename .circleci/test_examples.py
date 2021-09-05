@@ -36,4 +36,3 @@ class TestWorflow(unittest.TestCase):
         except:
             cleanup_on_failure('virtual-machine')
             raise
-        handle_uninstall_on_success('virtual-machine', 300)
