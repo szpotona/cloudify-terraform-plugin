@@ -1,9 +1,8 @@
 plugins:
-
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.16.4'
+    package_version: '0.16.5'
 
 dsl_definitions:
 
@@ -142,6 +141,10 @@ node_types:
       store_plugins_dir:
         type: boolean
         description: Whether to store terraform binary plugins. Protect your manager.
+        default: false
+      provider_upgrade:
+        type: boolean
+        description: Whether to add "--upgrade" to init command.
         default: false
     interfaces:
       cloudify.interfaces.lifecycle:

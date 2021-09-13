@@ -414,6 +414,16 @@ def get_resource_config(target=False):
     return resource_config
 
 
+def get_provider_upgrade(target=False):
+    """Get the cloudify.nodes.terraform.Module provider_upgrade"""
+    instance = get_instance(target=target)
+    provider_upgrade = instance.runtime_properties.get('provider_upgrade')
+    if not provider_upgrade:
+        node = get_node(target=target)
+        provider_upgrade = node.properties.get('provider_upgrade', False)
+    return provider_upgrade
+
+
 def get_terraform_config(target=False):
     """get the cloudify.nodes.terraform or cloudify.nodes.terraform.Module
     terraform_config"""

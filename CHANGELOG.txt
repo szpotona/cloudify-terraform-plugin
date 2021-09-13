@@ -1,3 +1,6 @@
+0.16.5:
+    - RD-3131: Handle bools in Env vars
+    - RD-3130: Support provider upgrade flag.
 0.16.4:
     - RD-3109: Fix Issue In Reload Template
 0.16.3:

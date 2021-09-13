@@ -32,7 +32,8 @@ class Terraform(object):
                  plugins_dir,
                  root_module,
                  variables=None,
-                 environment_variables=None):
+                 environment_variables=None,
+                 provider_upgrade=False):
 
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
@@ -51,8 +52,16 @@ class Terraform(object):
                 "dict): {0}".format(type(
                     variables)))
 
-        self.env = environment_variables
+        self.env = self.convert_bools_in_env(environment_variables)
         self.variables = variables
+        self.provider_upgrade = provider_upgrade
+
+    @staticmethod
+    def convert_bools_in_env(env):
+        for k, v in env.items():
+            if isinstance(v, bool):
+                env[k] = str(v).lower()
+        return env
 
     @staticmethod
     def set_plugins_dir(path):
@@ -89,6 +98,8 @@ class Terraform(object):
         cmdline = ['init', '-no-color', '-input=false']
         if self.plugins_dir:
             cmdline.append('--plugin-dir=%s' % self.plugins_dir)
+        if self.provider_upgrade:
+            cmdline.append('--upgrade')
         command = self._tf_command(cmdline)
         if additional_args:
             command.extend(additional_args)
@@ -160,6 +171,7 @@ class Terraform(object):
                           utils.get_binary_location_from_rel()
         plugins_dir = utils.get_plugins_dir()
         resource_config = utils.get_resource_config()
+        provider_upgrade = utils.get_provider_upgrade()
         if not os.path.exists(plugins_dir) and utils.is_using_existing():
             utils.mkdir_p(plugins_dir)
         env_variables = resource_config.get('environment_variables')
@@ -169,5 +181,6 @@ class Terraform(object):
                 plugins_dir,
                 terraform_source,
                 variables=resource_config.get('variables'),
-                environment_variables=env_variables)
+                environment_variables=env_variables,
+                provider_upgrade=provider_upgrade)
         return tf

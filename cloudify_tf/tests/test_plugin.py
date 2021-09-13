@@ -29,6 +29,7 @@ from ..tasks import (install,
                      apply,
                      set_directory_config)
 from ..utils import RELATIONSHIP_INSTANCE
+from ..terraform import Terraform
 
 
 test_dir1 = mkdtemp()
@@ -82,7 +83,9 @@ class TestPlugin(TestBase):
         }
 
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir1)
-    def test_install(self, _):
+    @patch('cloudify_tf.utils.run_subprocess')
+    @patch('cloudify_tf.utils.install_binary')
+    def test_install(self, *_):
         conf = self.get_terraform_conf_props(test_dir1)
         ctx = self.mock_ctx("test_install", conf)
         current_ctx.set(ctx=ctx)
@@ -99,9 +102,6 @@ class TestPlugin(TestBase):
         self.assertEqual(
             ctx.instance.runtime_properties.get("plugins_dir"),
             conf.get("terraform_config").get("plugins_dir"))
-        self.assertTrue(
-            path.isfile(ctx.instance.runtime_properties.get(
-                "executable_path")))
 
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir2)
     def test_set_directory_config(self, _):
@@ -194,3 +194,18 @@ class TestPlugin(TestBase):
                              {'eip': tf_pulled_resources.get('resources')[0]})
             self.assertEqual(ctx.instance.runtime_properties['outputs'],
                              tf_output)
+
+    @patch('cloudify_tf.terraform.Terraform.set_plugins_dir')
+    @patch('cloudify_tf.utils.get_executable_path')
+    @patch('cloudify_tf.utils.get_plugins_dir')
+    @patch('cloudify_tf.utils.install_binary')
+    def test_env_vars(self, *_):
+        conf = self.get_terraform_module_conf_props(test_dir3)
+        conf['resource_config']['environment_variables'] = {  # noqa
+            'true': True,
+            'false': False}
+
+        ctx = self.mock_ctx("test_apply_with_output", conf)
+        current_ctx.set(ctx=ctx)
+        t = Terraform.from_ctx(ctx, 'foo')
+        self.assertEqual(t.env, {'true': 'true', 'false': 'false'})
