@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.16.5'
+    package_version: '0.17.0'
 
 dsl_definitions:
 
@@ -157,6 +157,13 @@ node_types:
         pull:
           implementation: tf.cloudify_tf.tasks.state_pull
       terraform:
+        plan:
+          implementation: tf.cloudify_tf.tasks.plan
+          inputs:
+            source:
+              default: { get_property: [SELF, resource_config, source ] }
+            source_path:
+              default: { get_property: [SELF, resource_config, source_path ] }
         reload:
           # Reloads the Terraform template. By default, the template will be
           # read from the last location it was loaded from.
@@ -209,9 +216,9 @@ workflows:
         description: |
           List of node templates to refresh for.
 
-  reload_terraform_template:
-    mapping: tf.cloudify_tf.workflows.reload_resources
-    parameters:
+  terraform_plan:
+    mapping: tf.cloudify_tf.workflows.terraform_plan
+    parameters: &terraform_plan_params
       <<: *terraform_workflow_params
       source:
         type: string
@@ -219,6 +226,11 @@ workflows:
       source_path:
         type: string
         default: ''
+
+  reload_terraform_template:
+    mapping: tf.cloudify_tf.workflows.reload_resources
+    parameters: &terraform_reload_params
+      <<: *terraform_plan_params
       destroy_previous:
         type: boolean
         default: false

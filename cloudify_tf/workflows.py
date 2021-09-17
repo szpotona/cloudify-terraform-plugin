@@ -13,6 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudify.exceptions import NonRecoverableError
+
+HIERARCHY = 'type_hierarchy'
+TF_TYPE = 'cloudify.nodes.terraform'
+NOT_STARTED = ['uninitialized', 'deleted']
+CREATE = 'cloudify.interfaces.lifecycle.create'
+REL = 'cloudify.terraform.relationships.run_on_host'
+PRECONFIGURE = 'cloudify.interfaces.relationship_lifecycle.preconfigure'
+
 
 def _terraform_operation(ctx, operation, node_ids,
                          node_instance_ids, **kwargs):
@@ -58,3 +67,90 @@ def reload_resources(ctx, node_ids, node_instance_ids,
         node_ids,
         node_instance_ids,
         **kwargs).execute()
+
+
+def terraform_plan(ctx,
+                   node_ids=None,
+                   node_instance_ids=None,
+                   **kwargs):
+    """Execute the terraform plan on nodes or node instances.
+    :param ctx: The Cloudify Workflow Context from Workflow.
+    :type ctx: CloudifyContext
+    :param node_ids: A list of node IDs.
+    :type node_ids: list
+    :param node_instance_ids: A list of node IDs.
+      Mutually exclusive with node_ids.
+    :param node_instance_ids: list
+    :return graph execution.
+    :rtype: NoneType
+    """
+
+    graph = ctx.graph_mode()
+    sequence = graph.sequence()
+
+    if node_ids and node_instance_ids:
+        raise NonRecoverableError(
+            'The parameters node_ids and node_instance_ids are '
+            'mutually exclusive. '
+            '{} and {} were provided.'.format(node_ids, node_instance_ids)
+        )
+    elif node_ids or (not node_ids and not node_instance_ids):
+        for node in ctx.nodes:
+            if not node_ids or node.id in node_ids:
+                for instance in node.instances:
+                    _plan_module_instance(
+                        ctx, node, instance, sequence, kwargs)
+    elif node_instance_ids:
+        for instance in ctx.node_instances:
+            if instance.id in node_instance_ids:
+                _plan_module_instance(
+                    ctx, instance.node, instance, sequence, kwargs)
+
+    return graph.execute()
+
+
+def _start_terraform_instance(sequence, r):
+    sequence.add(
+        r.target_node_instance.execute_operation(CREATE))
+    sequence.add(
+        r.execute_source_operation(PRECONFIGURE))
+    sequence.add(
+        r.target_node_instance.set_state('started'))
+
+
+def _plan_module_instance(ctx, node, instance, sequence, kwargs):
+    """ Create a task sequence that will execute a terraform plan on
+    a list of nodes.
+
+    :param ctx: CloudifyWorkflowContext
+    :type ctx: CloudifyWorkflowContext
+    :param node: CloudifyWorkflowNode
+    :param instance: CloudifyWorkflowNodeInstance
+    :param sequence: TaskSequence
+    :param kwargs:
+    :return: None
+    """
+
+    for rel in instance.relationships:
+        if rel.target_node_instance.state in NOT_STARTED:
+            if REL not in rel.relationship._relationship[HIERARCHY]:
+                ctx.logger.error(
+                    'The Terraform plan node {} is related to the '
+                    'node instance {}, which is not in a started '
+                    'state. If the Terraform plan is dependent on any '
+                    'inputs from node instance {}, '
+                    'the plan will fail.'.format(
+                        node.id,
+                        rel.target_node_instance.id,
+                        rel.target_node_instance.id
+                    )
+                )
+            else:
+                _start_terraform_instance(sequence, rel)
+    sequence.add(
+        instance.execute_operation(
+            'terraform.plan',
+            kwargs=kwargs,
+            allow_kwargs_override=True
+        )
+    )

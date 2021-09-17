@@ -408,7 +408,7 @@ def get_resource_config(target=False):
     """Get the cloudify.nodes.terraform.Module resource_config"""
     instance = get_instance(target=target)
     resource_config = instance.runtime_properties.get('resource_config')
-    if not resource_config:
+    if not resource_config or ctx.workflow_id == 'install':
         node = get_node(target=target)
         resource_config = node.properties.get('resource_config', {})
     return resource_config
@@ -664,9 +664,13 @@ def get_terraform_source():
 
 
 @contextmanager
-def update_terraform_source(new_source, new_source_path=None):
+def update_terraform_source(new_source=None, new_source_path=None):
     """Replace the stored terraform resource template data"""
-    material = update_terraform_source_material(new_source)
+    if not new_source:
+        material = get_terraform_source_material()
+    else:
+        # If the plan operation passes NOone, then this would error.
+        material = update_terraform_source_material(new_source)
     return _yield_terraform_source(material, new_source_path)
 
 

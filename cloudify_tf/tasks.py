@@ -57,6 +57,36 @@ def _apply(tf):
     utils.refresh_resources_properties(tf_state, tf_output)
 
 
+def _plan(tf):
+    try:
+        tf.init()
+        return tf.plan_and_show()
+    except Exception as ex:
+        _, _, tb = sys.exc_info()
+        raise NonRecoverableError(
+            "Failed executing terraform plan. "
+            "If you ran plan prior to installation, verify that the "
+            "cloudify.nodes.terraform.Module node template is not dependent "
+            "on any uninstalled nodes. Plan is intended for use with "
+            "deployment update.",
+            causes=[exception_to_error_cause(ex, tb)])
+
+
+@operation
+@with_terraform
+def plan(ctx, tf, source=None, source_path=None, **_):
+    """
+    Execute `terraform plan`.
+    """
+    if source or source_path:
+        with utils.update_terraform_source(source, source_path) as tf_src:
+            tf = Terraform.from_ctx(ctx, tf_src)
+            result = _plan(tf)
+    else:
+        result = _plan(tf)
+    ctx.instance.runtime_properties['plan'] = result
+
+
 @operation
 @with_terraform
 def state_pull(ctx, tf, **_):

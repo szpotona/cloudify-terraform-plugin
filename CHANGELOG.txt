@@ -1,3 +1,5 @@
+0.17.0:
+    - RD-3165: Plan Operation
 0.16.5:
     - RD-3131: Handle bools in Env vars
     - RD-3130: Support provider upgrade flag.
