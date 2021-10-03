@@ -127,7 +127,7 @@ class Terraform(object):
 
     def output(self):
         command = self._tf_command(['output', '-json', '-no-color'])
-        returned_output = self.execute(command, True)
+        returned_output = self.execute(command)
         if returned_output:
             return json.loads(returned_output)
 
@@ -137,7 +137,7 @@ class Terraform(object):
 
     def state_pull(self):
         command = self._tf_command(['state', 'pull'])
-        pulled_state = self.execute(command, True)
+        pulled_state = self.execute(command)
         # If we got here, then the "state pull" return code must
         # be zero, and pulled_state actually contains a parse-able
         # JSON.
@@ -152,7 +152,7 @@ class Terraform(object):
     def show(self, plan_file_path):
         command = self._tf_command(
             ['show', '-no-color', '-json', plan_file_path])
-        output = self.execute(command, True)
+        output = self.execute(command)
         if output:
             return json.loads(output)
 

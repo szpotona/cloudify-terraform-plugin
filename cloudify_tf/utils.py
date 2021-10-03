@@ -24,13 +24,13 @@ import filecmp
 import tempfile
 import requests
 import threading
-import subprocess
 from io import BytesIO
 from pathlib import Path
 from contextlib import contextmanager
 
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
+from cloudify_common_sdk.processes import general_executor, process_execution
 from cloudify_common_sdk.utils import get_deployment_dir
 from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
@@ -93,35 +93,19 @@ def run_subprocess(command,
                     cwd=cwd,
                     args=printed_args))
 
-    process = subprocess.Popen(
-        args=command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=None,
-        cwd=cwd,
-        **args_to_pass)
+    general_executor_params = copy.deepcopy(args_to_pass)
+    general_executor_params['cwd'] = cwd
+    general_executor_params['log_stdout'] = return_output
+    general_executor_params['log_stderr'] = return_output
+    general_executor_params['stderr_to_stdout'] = False
+    script_path = command.pop(0)
+    general_executor_params['args'] = command
 
-    if return_output:
-        stdout_consumer = CapturingOutputConsumer(
-            process.stdout)
-    else:
-        stdout_consumer = LoggingOutputConsumer(
-            process.stdout, logger, '<out> ')
-    stderr_consumer = LoggingOutputConsumer(
-        process.stderr, logger, '<err> ')
-
-    return_code = process.wait()
-    stdout_consumer.join()
-    stderr_consumer.join()
-
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, command)
-
-    output = stdout_consumer.buffer.getvalue() if return_output else None
-    # Leave this commented in case someone wants to debug.
-    # logger.debug('Returning output:\n{output}'.format(
-    #     output=output if output is not None else '<None>'))
-    return output
+    return process_execution(
+        general_executor,
+        script_path,
+        ctx,
+        general_executor_params)
 
 
 def exclude_file(dirname, filename, excluded_files):
