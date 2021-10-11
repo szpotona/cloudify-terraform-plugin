@@ -117,7 +117,7 @@ class Terraform(object):
         if out_file_path:
             command.extend(['-out', out_file_path])
         with self._vars_file(command):
-            return self.execute(command)
+            return self.execute(command, False)
 
     def apply(self):
         command = self._tf_command(['apply', '-auto-approve', '-no-color',
@@ -127,7 +127,7 @@ class Terraform(object):
 
     def output(self):
         command = self._tf_command(['output', '-json', '-no-color'])
-        returned_output = self.execute(command)
+        returned_output = self.execute(command, False)
         if returned_output:
             return json.loads(returned_output)
 
@@ -137,7 +137,7 @@ class Terraform(object):
 
     def state_pull(self):
         command = self._tf_command(['state', 'pull'])
-        pulled_state = self.execute(command)
+        pulled_state = self.execute(command, False)
         # If we got here, then the "state pull" return code must
         # be zero, and pulled_state actually contains a parse-able
         # JSON.
@@ -152,7 +152,7 @@ class Terraform(object):
     def show(self, plan_file_path):
         command = self._tf_command(
             ['show', '-no-color', '-json', plan_file_path])
-        output = self.execute(command)
+        output = self.execute(command, False)
         if output:
             return json.loads(output)
 
