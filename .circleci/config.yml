@@ -136,6 +136,7 @@ commands:
           root: workspace
           paths:
             - build/*
+
   generate_rhel_py36_wagon:
     steps:
       - run:
@@ -379,6 +380,7 @@ jobs:
     steps:
       - checkout
       - generate_arch64_wagon
+
   rhel_wagon:
     executor: wagon_generator
     steps:
