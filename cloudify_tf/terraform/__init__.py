@@ -69,7 +69,7 @@ class Terraform(object):
             return
         return path
 
-    def execute(self, command, return_output=False):
+    def execute(self, command, return_output=True):
         return utils.run_subprocess(
             command, self.logger, self.root_module,
             self.env, return_output=return_output)
@@ -92,7 +92,7 @@ class Terraform(object):
         os.remove(f.name)
 
     def version(self):
-        return self.execute(self._tf_command(['version']), True)
+        return self.execute(self._tf_command(['version']))
 
     def init(self, additional_args=None):
         cmdline = ['init', '-no-color', '-input=false']
