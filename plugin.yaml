@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.17.3'
+    package_version: '0.17.4'
 
 dsl_definitions:
 
@@ -137,7 +137,7 @@ node_types:
       max_stored_filesize:
         type: integer
         description: The maximum file size that you want us to store in the rest service. Protect your manager.
-        default: 50000
+        default: 100000
       store_plugins_dir:
         type: boolean
         description: Whether to store terraform binary plugins. Protect your manager.
@@ -146,6 +146,11 @@ node_types:
         type: boolean
         description: Whether to add "--upgrade" to init command.
         default: false
+      general_executor_process:
+        type: dict
+        description: Additional keyword args to send the the general executor process argument.
+        default:
+          max_sleep_time: 300
     interfaces:
       cloudify.interfaces.lifecycle:
         configure:

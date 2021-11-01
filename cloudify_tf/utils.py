@@ -95,9 +95,12 @@ def run_subprocess(command,
 
     general_executor_params = copy.deepcopy(args_to_pass)
     general_executor_params['cwd'] = cwd
-    general_executor_params['log_stdout'] = return_output
-    general_executor_params['log_stderr'] = return_output
-    general_executor_params['stderr_to_stdout'] = False
+    if 'log_stdout' not in general_executor_params:
+        general_executor_params['log_stdout'] = return_output
+    if 'log_stderr' not in general_executor_params:
+        general_executor_params['log_stderr'] = return_output
+    if 'stderr_to_stdout' not in general_executor_params:
+        general_executor_params['stderr_to_stdout'] = False
     script_path = command.pop(0)
     general_executor_params['args'] = command
 
@@ -422,16 +425,21 @@ def get_terraform_config(target=False):
 def update_terraform_source_material(new_source, target=False):
     """Replace the terraform_source material with a new material.
     This is used in terraform.reload_template operation."""
-    new_source_location = new_source['location']
+    ctx.logger.info(new_source)
+    new_source_location = new_source
+    new_source_username = None
+    new_source_password = None
+    if isinstance(new_source, dict):
+        new_source_location = new_source['location']
+        new_source_username = new_source.get('username')
+        new_source_password = new_source.get('password')
     source_tmp_path = get_shared_resource(
         new_source_location, dir=get_node_instance_dir(target=target),
-        username=new_source.get('username'),
-        password=new_source.get('password'))
-
+        username=new_source_username,
+        password=new_source_password)
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
         source_tmp_path = _create_source_path(source_tmp_path)
-
     # By getting here we will have extracted source
     # Zip the file to store in runtime
     terraform_source_zip = _zip_archive(source_tmp_path)
@@ -631,7 +639,6 @@ def extract_binary_tf_data(root_dir, data, source_path):
     with tempfile.NamedTemporaryFile(dir=root_dir, delete=False) as f:
         base64.decode(StringIO(data), f)
         terraform_source_zip = f.name
-
     # By getting here, "terraform_source_zip" is the path
     #  to a ZIP file containing the Terraform files.
     _unzip_archive(terraform_source_zip, root_dir, source_path)
@@ -666,6 +673,7 @@ def _yield_terraform_source(material, source_path=None):
     module_root = get_storage_path()
     handle_backend(module_root)
     source_path = source_path or get_source_path()
+
     extract_binary_tf_data(module_root, material, source_path)
     try:
         yield get_node_instance_dir(source_path=source_path)
@@ -680,8 +688,10 @@ def _yield_terraform_source(material, source_path=None):
         # properties.
         base64_rep = _file_to_base64(archived_file)
         os.remove(archived_file)
+
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
+
         ctx.instance.runtime_properties['terraform_source'] = base64_rep
         ctx.instance.runtime_properties['resource_config'] = \
             get_resource_config()

@@ -1,4 +1,5 @@
 ########
+########
 # Copyright (c) 2018-2020 GigaSpaces Technologies Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,12 +34,14 @@ class Terraform(object):
                  root_module,
                  variables=None,
                  environment_variables=None,
-                 provider_upgrade=False):
+                 provider_upgrade=False,
+                 additional_args=None):
 
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
         self.root_module = root_module
         self.logger = logger
+        self.additional_args = additional_args
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -71,8 +74,12 @@ class Terraform(object):
 
     def execute(self, command, return_output=True):
         return utils.run_subprocess(
-            command, self.logger, self.root_module,
-            self.env, return_output=return_output)
+            command,
+            self.logger,
+            self.root_module,
+            self.env,
+            self.additional_args,
+            return_output=return_output)
 
     def _tf_command(self, args):
         cmd = [self.binary_path]
@@ -94,15 +101,15 @@ class Terraform(object):
     def version(self):
         return self.execute(self._tf_command(['version']))
 
-    def init(self, additional_args=None):
+    def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
         if self.plugins_dir:
             cmdline.append('--plugin-dir=%s' % self.plugins_dir)
         if self.provider_upgrade:
             cmdline.append('--upgrade')
         command = self._tf_command(cmdline)
-        if additional_args:
-            command.extend(additional_args)
+        if command_line_args:
+            command.extend(command_line_args)
         with self._vars_file(command):
             return self.execute(command)
 
@@ -172,6 +179,8 @@ class Terraform(object):
         plugins_dir = utils.get_plugins_dir()
         resource_config = utils.get_resource_config()
         provider_upgrade = utils.get_provider_upgrade()
+        general_executor_process = ctx.node.properties.get(
+            'general_executor_process')
         if not os.path.exists(plugins_dir) and utils.is_using_existing():
             utils.mkdir_p(plugins_dir)
         env_variables = resource_config.get('environment_variables')
@@ -182,5 +191,6 @@ class Terraform(object):
                 terraform_source,
                 variables=resource_config.get('variables'),
                 environment_variables=env_variables,
-                provider_upgrade=provider_upgrade)
+                provider_upgrade=provider_upgrade,
+                additional_args=general_executor_process)
         return tf

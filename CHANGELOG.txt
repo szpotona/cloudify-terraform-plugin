@@ -1,3 +1,6 @@
+0.17.4:
+    - RD-3348: Plan comparison before apply.
+    - RD-3451: Let users set max_sleep_time parameter.
 0.17.3: Fix Issue.
 0.17.2: Update Utilities.
 0.17.1: RD-3275 Use general executor.

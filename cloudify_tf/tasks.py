@@ -17,6 +17,7 @@ import os
 import sys
 
 from cloudify.decorators import operation
+from cloudify import ctx as ctx_from_imports
 from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
 
@@ -30,25 +31,44 @@ from .terraform import Terraform
 
 @operation
 @with_terraform
-def apply(ctx, tf, **_):
+def apply(ctx, tf, force=False, **_):
     """
     Execute `terraform apply`.
     """
     if ctx.workflow_id == 'update':
         resource_config = utils.get_resource_config()
         source = resource_config.get('source')
-        reload_template(source, destroy_previous=False, ctx=ctx, tf=tf)
+        source_path = resource_config.get('source_path')
+        reload_template(
+            source, source_path, destroy_previous=False, ctx=ctx, tf=tf)
     else:
-        _apply(tf)
+        old_plan = ctx.instance.runtime_properties.get('plan')
+        _apply(tf, old_plan, force)
 
 
-def _apply(tf):
+class FailedPlanValidation(NonRecoverableError):
+    pass
+
+
+def compare_plan_results(new_plan, old_plan, force):
+    if old_plan and old_plan != new_plan and not force:
+        ctx_from_imports.logger.debug('New plan and old plan diff {}'.format(
+            set(old_plan) ^ set(new_plan)))
+        raise FailedPlanValidation(
+            'The new plan differs from the old plan. '
+            'Please Rerun plan workflow before executing apply worfklow.')
+
+
+def _apply(tf, old_plan=None, force=False):
     try:
         tf.init()
-        tf.plan()
+        new_plan = tf.plan_and_show()
+        compare_plan_results(new_plan, old_plan, force)
         tf.apply()
         tf_state = tf.state_pull()
         tf_output = tf.output()
+    except FailedPlanValidation:
+        raise
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
@@ -146,15 +166,14 @@ def reload_template(source, source_path, destroy_previous, ctx, tf, **_):
     if not source:
         raise NonRecoverableError(
             "New source path/URL for Terraform template was not provided")
-
     source = utils.handle_previous_source_format(source)
-
     if destroy_previous:
         destroy(tf=tf, ctx=ctx)
-
-    with utils.update_terraform_source(source) as terraform_source:
+    with utils.update_terraform_source(source,
+                                       source_path) as terraform_source:
         new_tf = Terraform.from_ctx(ctx, terraform_source)
-        _apply(new_tf)
+        old_plan = ctx.instance.runtime_properties.get('plan')
+        _apply(new_tf, old_plan)
         ctx.instance.runtime_properties['resource_config'] = \
             utils.get_resource_config()
         _state_pull(new_tf)

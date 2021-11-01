@@ -22,10 +22,10 @@ executors:
     machine:
       image: ubuntu-1604:201903-01
 
-  arm_wagon_generator:
-    machine:
-      image: ubuntu-2004:202101-01
-      resource_class: arm.medium
+#  arm_wagon_generator:
+#    machine:
+#      image: ubuntu-2004:202101-01
+#      resource_class: arm.medium
 
   cloudify-machine-py3:
     machine:
@@ -408,11 +408,11 @@ jobs:
       - checkout
       - generate_py36_wagon
 
-  arch64_wagon:
-    executor: arm_wagon_generator
-    steps:
-      - checkout
-      - generate_arch64_wagon
+#  arch64_wagon:
+#    executor: arm_wagon_generator
+#    steps:
+#      - checkout
+#      - generate_arch64_wagon
 
   rhel_wagon:
     executor: wagon_generator
@@ -472,10 +472,10 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
-      - arch64_wagon:
-          filters:
-            branches:
-              only: /([0-9\.]*\-build|master|dev)/
+#      - arch64_wagon:
+#          filters:
+#            branches:
+#              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
@@ -486,7 +486,7 @@ workflows:
               only: /master/
           requires:
             - wagon
-            - arch64_wagon
+#            - arch64_wagon
             - rhel_wagon
       - integration_tests_py3:
           requires:
@@ -502,7 +502,7 @@ workflows:
             - build_bundle
             - unittests_py36
             - wagon
-            - arch64_wagon
+#            - arch64_wagon
             - rhel_wagon
             - integration_tests_py3
       - merge_docs:
@@ -528,10 +528,10 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
-      - arch64_wagon:
-          filters:
-            branches:
-              only: /([0-9\.]*\-build|master|dev)/
+#      - arch64_wagon:
+#          filters:
+#            branches:
+#              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
@@ -543,13 +543,13 @@ workflows:
           requires:
             - wagon
             - rhel_wagon
-            - arch64_wagon
+#            - arch64_wagon
       - integration_tests_py3:
           requires:
             - build_bundle
             - wagon
             - rhel_wagon
-            - arch64_wagon
+#            - arch64_wagon
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
