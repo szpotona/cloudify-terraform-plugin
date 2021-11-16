@@ -1,3 +1,4 @@
+0.17.6: Overwrite files when using new source.
 0.17.5: Rerelease for ARM wagon.
 0.17.4:
     - RD-3348: Plan comparison before apply.

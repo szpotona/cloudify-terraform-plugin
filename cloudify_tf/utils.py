@@ -98,7 +98,7 @@ def run_subprocess(command,
     if 'log_stdout' not in general_executor_params:
         general_executor_params['log_stdout'] = return_output
     if 'log_stderr' not in general_executor_params:
-        general_executor_params['log_stderr'] = return_output
+        general_executor_params['log_stderr'] = True
     if 'stderr_to_stdout' not in general_executor_params:
         general_executor_params['stderr_to_stdout'] = False
     script_path = command.pop(0)
@@ -208,13 +208,16 @@ def copytree(src, dst):
     for item in os.listdir(src):
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
-        if os.path.exists(d):
-            continue
-        elif os.path.isdir(s):
+        if os.path.exists(d) and os.path.isfile(d):
+            os.remove(d)
+        if os.path.isdir(s):
             try:
                 shutil.copytree(s, d)
-            except OSError:
-                shutil.move(s, d)
+            except (shutil.Error, OSError):
+                try:
+                    shutil.copy(s, d)
+                except Exception:
+                    pass
         else:
             shutil.copy2(s, d)
 
@@ -673,7 +676,6 @@ def _yield_terraform_source(material, source_path=None):
     module_root = get_storage_path()
     handle_backend(module_root)
     source_path = source_path or get_source_path()
-
     extract_binary_tf_data(module_root, material, source_path)
     try:
         yield get_node_instance_dir(source_path=source_path)
