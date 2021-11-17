@@ -134,10 +134,14 @@ node_types:
       resource_config:
         type: cloudify.types.terraform.RootModule
         required: true
+      max_runtime_property_size:
+        type: integer
+        description: The maximum terraform source size that you want us to store in the runtime properties. Protect your manager.
+        default: 1000000
       max_stored_filesize:
         type: integer
         description: The maximum file size that you want us to store in the rest service. Protect your manager.
-        default: 100000
+        default: 1000000
       store_plugins_dir:
         type: boolean
         description: Whether to store terraform binary plugins. Protect your manager.
@@ -162,6 +166,8 @@ node_types:
         pull:
           implementation: tf.cloudify_tf.tasks.state_pull
       terraform:
+        pull:
+          implementation: tf.cloudify_tf.tasks.state_pull
         plan:
           implementation: tf.cloudify_tf.tasks.plan
           inputs:

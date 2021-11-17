@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import re
 import json
 import tempfile
 
@@ -42,6 +43,7 @@ class Terraform(object):
         self.root_module = root_module
         self.logger = logger
         self.additional_args = additional_args
+        self._version = {}
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -98,8 +100,45 @@ class Terraform(object):
             yield
         os.remove(f.name)
 
+    @property
     def version(self):
-        return self.execute(self._tf_command(['version']))
+        if not self._version:
+            returned_output = self.execute(
+                self._tf_command(['version', '-json']), False)
+            try:
+                self._version = json.loads(returned_output)
+            except json.JSONDecodeError:
+                self._version = {
+                    'terraform_version': self.get_version_from_text(
+                        returned_output),
+                    'terraform_outdated': True
+                }
+        return self._version
+
+    @staticmethod
+    def read_version_from_text(text):
+        try:
+            return re.search(
+                'Terraform\\sv(.*)\\n', text.decode('utf-8')).group(1)
+        except AttributeError:
+            return '0.0.0'
+
+    def read_version(self, response):
+        try:
+            return json.loads(response)
+        except (ValueError, json.JSONDecodeError):
+            return {
+                'terraform_version': self.read_version_from_text(response),
+                'terraform_outdated': True
+            }
+
+    @property
+    def terraform_version(self):
+        return self.version.get('terraform_version')
+
+    @property
+    def terraform_outdated(self):
+        return self.version.get('terraform_outdated')
 
     def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
@@ -114,7 +153,9 @@ class Terraform(object):
             return self.execute(command)
 
     def destroy(self):
-        command = self._tf_command(['destroy', '-auto-approve', '-no-color',
+        command = self._tf_command(['destroy',
+                                    '-auto-approve',
+                                    '-no-color',
                                     '-input=false'])
         with self._vars_file(command):
             return self.execute(command)
@@ -127,7 +168,9 @@ class Terraform(object):
             return self.execute(command, False)
 
     def apply(self):
-        command = self._tf_command(['apply', '-auto-approve', '-no-color',
+        command = self._tf_command(['apply',
+                                    '-auto-approve',
+                                    '-no-color',
                                     '-input=false'])
         with self._vars_file(command):
             return self.execute(command)
@@ -152,7 +195,15 @@ class Terraform(object):
             return json.loads(pulled_state)
 
     def refresh(self):
-        command = self._tf_command(['refresh', '-no-color'])
+        from distutils.version import LooseVersion as parse_version
+        if parse_version(self.terraform_version) >= parse_version("0.15.4"):
+            command = self._tf_command(['apply',
+                                        '-refresh-only',
+                                        '-auto-approve',
+                                        '-no-color',
+                                        '-input=false'])
+        else:
+            command = self._tf_command(['refresh', '-no-color'])
         with self._vars_file(command):
             return self.execute(command)
 

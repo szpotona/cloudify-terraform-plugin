@@ -51,6 +51,9 @@ def with_terraform(func):
             return
         with get_terraform_source() as terraform_source:
             tf = Terraform.from_ctx(ctx, terraform_source)
+            if tf.terraform_outdated:
+                ctx.logger.error('Your terraform version {} is outdated. '
+                                 'Please update.'.format(tf.terraform_version))
             kwargs['tf'] = tf
             return func(*args, **kwargs)
     return f

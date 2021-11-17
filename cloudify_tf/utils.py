@@ -103,6 +103,8 @@ def run_subprocess(command,
         general_executor_params['stderr_to_stdout'] = False
     script_path = command.pop(0)
     general_executor_params['args'] = command
+    general_executor_params['max_sleep_time'] = get_node().properties.get(
+        'max_sleep_time', 300)
 
     return process_execution(
         general_executor,
@@ -673,6 +675,7 @@ def _yield_terraform_source(material, source_path=None):
     let the operations do all their magic,
     and then store it again for later use.
     """
+    ctx_node = get_node()
     module_root = get_storage_path()
     handle_backend(module_root)
     source_path = source_path or get_source_path()
@@ -691,10 +694,18 @@ def _yield_terraform_source(material, source_path=None):
         base64_rep = _file_to_base64(archived_file)
         os.remove(archived_file)
 
+        ctx.logger.info('ctx_node.properties: {}'
+                        .format(ctx_node.properties))
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
 
-        ctx.instance.runtime_properties['terraform_source'] = base64_rep
+        if len(base64_rep) > get_node().properties.get(
+                'max_runtime_property_size', 100000):
+            raise Exception('Not storing terraform_source, '
+                            'because its size is {}'.format(len(base64_rep)))
+        else:
+            ctx.instance.runtime_properties['terraform_source'] = base64_rep
+
         ctx.instance.runtime_properties['resource_config'] = \
             get_resource_config()
         if source_path:

@@ -113,6 +113,10 @@ def state_pull(ctx, tf, **_):
     """
     Execute `terraform state pull`.
     """
+    if ctx.operation.name == 'cloudify.interfaces.lifecycle.pull':
+        raise NonRecoverableError(
+            'The operation cloudify.interfaces.lifecycle.pull is not a '
+            'valid operation. Please use terraform.pull.')
     _state_pull(tf)
 
 
