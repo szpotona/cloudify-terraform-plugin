@@ -1,3 +1,4 @@
+0.17.7: Use apply refresh-only for later versions of Terraform instead of refresh.
 0.17.6: Overwrite files when using new source.
 0.17.5: Rerelease for ARM wagon.
 0.17.4:

@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.17.6'
+    package_version: '0.17.7'
 
 dsl_definitions:
 

@@ -105,14 +105,7 @@ class Terraform(object):
         if not self._version:
             returned_output = self.execute(
                 self._tf_command(['version', '-json']), False)
-            try:
-                self._version = json.loads(returned_output)
-            except json.JSONDecodeError:
-                self._version = {
-                    'terraform_version': self.get_version_from_text(
-                        returned_output),
-                    'terraform_outdated': True
-                }
+            self._version = self.read_version(returned_output)
         return self._version
 
     @staticmethod
