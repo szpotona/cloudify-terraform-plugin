@@ -628,10 +628,11 @@ def handle_plugins(plugins, plugins_dir, installation_dir):
 
 
 def dump_file(output, work_directory, file_name):
-    file_path = os.path.join(work_directory, file_name)
-    fd = open(file_path, 'w')
-    fd.write(output)
-    fd.close()
+    if output:
+        file_path = os.path.join(work_directory, file_name)
+        fd = open(file_path, 'w')
+        fd.write(output)
+        fd.close()
 
 
 def extract_binary_tf_data(root_dir, data, source_path):
