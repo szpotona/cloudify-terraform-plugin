@@ -627,16 +627,11 @@ def handle_plugins(plugins, plugins_dir, installation_dir):
             os.remove(plugin_zip.name)
 
 
-def handle_backend(root_dir):
-    resource_config = get_resource_config()
-    backend = resource_config.get('backend')
-    if backend:
-        backend_string = create_backend_string(
-            backend['name'], backend.get('options', {}))
-        backend_file_path = os.path.join(
-            root_dir, '{0}.tf'.format(backend['name']))
-        with open(backend_file_path, 'w') as infile:
-            infile.write(backend_string)
+def dump_file(output, work_directory, file_name):
+    file_path = os.path.join(work_directory, file_name)
+    fd = open(file_path, 'w')
+    fd.write(output)
+    fd.close()
 
 
 def extract_binary_tf_data(root_dir, data, source_path):
@@ -677,7 +672,6 @@ def _yield_terraform_source(material, source_path=None):
     """
     ctx_node = get_node()
     module_root = get_storage_path()
-    handle_backend(module_root)
     source_path = source_path or get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
     try:
@@ -704,7 +698,8 @@ def _yield_terraform_source(material, source_path=None):
             raise Exception('Not storing terraform_source, '
                             'because its size is {}'.format(len(base64_rep)))
         else:
-            ctx.instance.runtime_properties['terraform_source'] = base64_rep
+            ctx.instance.runtime_properties['terraform_source'] = \
+                base64_rep
 
         ctx.instance.runtime_properties['resource_config'] = \
             get_resource_config()

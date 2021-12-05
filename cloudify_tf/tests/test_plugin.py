@@ -199,6 +199,7 @@ class TestPlugin(TestBase):
     @patch('cloudify_tf.utils.get_executable_path')
     @patch('cloudify_tf.utils.get_plugins_dir')
     @patch('cloudify_tf.utils.install_binary')
+    @patch('cloudify_tf.utils.dump_file')
     def test_env_vars(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
         conf['resource_config']['environment_variables'] = {  # noqa

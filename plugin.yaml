@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.17.7'
+    package_version: '0.18.0'
 
 dsl_definitions:
 
@@ -64,6 +64,9 @@ data_types:
         required: False
       options:
         description: Should be a dictionary of key/values.
+        required: False
+      credentials:
+        description: Should be a dictionary of environment variables to export during execution.
         required: False
 
   cloudify.types.terraform.SourceSpecification:

@@ -35,8 +35,11 @@ class Terraform(object):
                  root_module,
                  variables=None,
                  environment_variables=None,
+                 backend=None,
                  provider_upgrade=False,
                  additional_args=None):
+
+        backend = backend or {}
 
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
@@ -57,9 +60,24 @@ class Terraform(object):
                 "dict): {0}".format(type(
                     variables)))
 
-        self.env = self.convert_bools_in_env(environment_variables)
-        self.variables = variables
+        self._env = self.convert_bools_in_env(environment_variables)
+        self._backend = backend
+        self._variables = variables
         self.provider_upgrade = provider_upgrade
+
+    @property
+    def env(self):
+        return self._env
+
+    @property
+    def variables(self):
+        return self._variables
+
+    @property
+    def backend(self):
+        if self._backend:
+            return utils.create_backend_string(
+                self._backend.get('name'), self._backend.get('options', {}))
 
     @staticmethod
     def convert_bools_in_env(env):
@@ -88,8 +106,11 @@ class Terraform(object):
         cmd.extend(args)
         return cmd
 
+    def put_backend(self):
+        utils.dump_file(self.backend, self.root_module, 'backend.tf')
+
     @contextmanager
-    def _vars_file(self, command):
+    def runtime_file(self, command):
         with tempfile.NamedTemporaryFile(suffix=".json",
                                          delete=False,
                                          mode="w",
@@ -142,7 +163,7 @@ class Terraform(object):
         command = self._tf_command(cmdline)
         if command_line_args:
             command.extend(command_line_args)
-        with self._vars_file(command):
+        with self.runtime_file(command):
             return self.execute(command)
 
     def destroy(self):
@@ -150,14 +171,14 @@ class Terraform(object):
                                     '-auto-approve',
                                     '-no-color',
                                     '-input=false'])
-        with self._vars_file(command):
+        with self.runtime_file(command):
             return self.execute(command)
 
     def plan(self, out_file_path=None):
         command = self._tf_command(['plan', '-no-color', '-input=false'])
         if out_file_path:
             command.extend(['-out', out_file_path])
-        with self._vars_file(command):
+        with self.runtime_file(command):
             return self.execute(command, False)
 
     def apply(self):
@@ -165,7 +186,7 @@ class Terraform(object):
                                     '-auto-approve',
                                     '-no-color',
                                     '-input=false'])
-        with self._vars_file(command):
+        with self.runtime_file(command):
             return self.execute(command)
 
     def output(self):
@@ -197,7 +218,7 @@ class Terraform(object):
                                         '-input=false'])
         else:
             command = self._tf_command(['refresh', '-no-color'])
-        with self._vars_file(command):
+        with self.runtime_file(command):
             return self.execute(command)
 
     def show(self, plan_file_path):
@@ -235,6 +256,8 @@ class Terraform(object):
                 terraform_source,
                 variables=resource_config.get('variables'),
                 environment_variables=env_variables,
+                backend=resource_config.get('backend'),
                 provider_upgrade=provider_upgrade,
                 additional_args=general_executor_process)
+        tf.put_backend()
         return tf
