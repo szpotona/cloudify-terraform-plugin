@@ -206,7 +206,6 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
 
 
 def copytree(src, dst):
-    ctx.logger.debug('Copying {src} to {dst}.'.format(src=src, dst=dst))
     for item in os.listdir(src):
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
@@ -214,12 +213,12 @@ def copytree(src, dst):
             os.remove(d)
         if os.path.isdir(s):
             try:
-                shutil.copytree(s, d)
-            except (shutil.Error, OSError):
+                copytree(s, d)
+            except Exception:
                 try:
+                    shutil.copytree(s, d)
+                except (shutil.Error, OSError):
                     shutil.copy(s, d)
-                except Exception:
-                    pass
         else:
             shutil.copy2(s, d)
 
@@ -442,6 +441,7 @@ def update_terraform_source_material(new_source, target=False):
         new_source_location, dir=get_node_instance_dir(target=target),
         username=new_source_username,
         password=new_source_password)
+    ctx.logger.info('Source Temp Path {}'.format(source_tmp_path))
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
         source_tmp_path = _create_source_path(source_tmp_path)
@@ -658,7 +658,7 @@ def get_terraform_source():
 @contextmanager
 def update_terraform_source(new_source=None, new_source_path=None):
     """Replace the stored terraform resource template data"""
-    if not new_source:
+    if not new_source and not new_source_path:
         material = get_terraform_source_material()
     else:
         # If the plan operation passes NOone, then this would error.
