@@ -79,6 +79,7 @@ def _apply(tf, old_plan=None, force=False):
 
 def _plan(tf):
     try:
+        tf.init()
         return tf.plan_and_show()
     except Exception as ex:
         _, _, tb = sys.exc_info()

@@ -671,7 +671,6 @@ def _yield_terraform_source(material, source_path=None):
     let the operations do all their magic,
     and then store it again for later use.
     """
-    ctx_node = get_node()
     module_root = get_storage_path()
     source_path = source_path or get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
@@ -689,8 +688,6 @@ def _yield_terraform_source(material, source_path=None):
         base64_rep = _file_to_base64(archived_file)
         os.remove(archived_file)
 
-        ctx.logger.info('ctx_node.properties: {}'
-                        .format(ctx_node.properties))
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
 
