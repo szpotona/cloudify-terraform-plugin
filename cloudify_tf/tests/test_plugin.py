@@ -139,7 +139,7 @@ class TestPlugin(TestBase):
             ctx.source.instance.runtime_properties.get("executable_path"),
             ctx.target.instance.runtime_properties.get("executable_path"))
 
-    @patch('cloudify_tf.utils.get_cloudify_version', return_value=6.1)
+    @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
     def test_apply_no_output(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
@@ -168,7 +168,7 @@ class TestPlugin(TestBase):
             self.assertEqual(ctx.instance.runtime_properties['outputs'],
                              tf_output)
 
-    @patch('cloudify_tf.utils.get_cloudify_version', return_value=6.1)
+    @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
     def test_apply_with_output(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)

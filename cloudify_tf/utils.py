@@ -31,7 +31,9 @@ from contextlib import contextmanager
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 from cloudify_common_sdk.processes import general_executor, process_execution
-from cloudify_common_sdk.utils import get_deployment_dir, get_cloudify_version
+from cloudify_common_sdk.utils import get_deployment_dir, \
+                                      get_cloudify_version, \
+                                      v1_gteq_v2
 from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
 from cloudify_common_sdk.resource_downloader import get_shared_resource
@@ -691,7 +693,7 @@ def _yield_terraform_source(material, source_path=None):
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
 
-        if get_cloudify_version() >= 6.1:
+        if v1_gteq_v2(get_cloudify_version(), "6.1.0"):
             ctx.logger.debug('Not storing zip in runtime properties in '
                              'Cloudify 6.1 and greater')
         elif len(base64_rep) > get_node().properties.get(
