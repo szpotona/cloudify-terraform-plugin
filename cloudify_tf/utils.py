@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import sys
 import copy
 import json
 import base64
@@ -25,12 +26,13 @@ import tempfile
 import requests
 import threading
 from io import BytesIO
-from pathlib import Path
+from itertools import islice
 from contextlib import contextmanager
 
+from pathlib import Path
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
-from cloudify_common_sdk.processes import general_executor, process_execution
+from cloudify.utils import exception_to_error_cause
 from cloudify_common_sdk.utils import get_deployment_dir, \
                                       get_cloudify_version, \
                                       v1_gteq_v2
@@ -38,6 +40,7 @@ from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
 from cloudify_common_sdk.resource_downloader import get_shared_resource
 from cloudify_common_sdk.resource_downloader import TAR_FILE_EXTENSTIONS
+from cloudify_common_sdk.processes import general_executor, process_execution
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
@@ -207,24 +210,6 @@ def _zip_archive(extracted_source, exclude_files=None, **_):
     return archive_file_path
 
 
-def copytree(src, dst):
-    for item in os.listdir(src):
-        s = os.path.join(src, item)
-        d = os.path.join(dst, item)
-        if os.path.exists(d) and os.path.isfile(d):
-            os.remove(d)
-        if os.path.isdir(s):
-            try:
-                copytree(s, d)
-            except Exception:
-                try:
-                    shutil.copytree(s, d)
-                except (shutil.Error, OSError):
-                    shutil.copy(s, d)
-        else:
-            shutil.copy2(s, d)
-
-
 def _unzip_archive(archive_path, target_directory, source_path=None, **_):
     """
     Unzip a zip archive.
@@ -236,8 +221,8 @@ def _unzip_archive(archive_path, target_directory, source_path=None, **_):
     ctx.logger.debug('Unzipping {src} to {dst}.'.format(
         src=archive_path, dst=target_directory))
 
-    src = unzip_archive(archive_path)
-    copytree(src, target_directory)
+    src = unzip_archive(archive_path, skip_parent_directory=False)
+    copy_directory(src, target_directory)
     return target_directory
 
 
@@ -270,11 +255,11 @@ def _create_source_path(source_tmp_path):
         file_type = file_name.rsplit('.', 1)[1]
         # check type
         if file_type == 'zip':
-            unzipped_source = unzip_archive(source_tmp_path)
+            unzipped_source = unzip_archive(source_tmp_path, False)
             os.remove(source_tmp_path)
             source_tmp_path = unzipped_source
         elif file_type in TAR_FILE_EXTENSTIONS:
-            unzipped_source = untar_archive(source_tmp_path)
+            unzipped_source = untar_archive(source_tmp_path, False)
             os.remove(source_tmp_path)
             source_tmp_path = unzipped_source
     return source_tmp_path
@@ -285,6 +270,10 @@ def set_permissions(target_file):
         ['chmod', 'u+x', target_file],
         ctx.logger
     )
+
+
+def copy_directory(src, dst):
+    run_subprocess(['cp', '-r', os.path.join(src, '*'), dst])
 
 
 def unzip_and_set_permissions(zip_file, target_dir):
@@ -435,12 +424,15 @@ def update_terraform_source_material(new_source, target=False):
     new_source_location = new_source
     new_source_username = None
     new_source_password = None
+    node_instance_dir = get_node_instance_dir(target=target)
     if isinstance(new_source, dict):
         new_source_location = new_source['location']
         new_source_username = new_source.get('username')
         new_source_password = new_source.get('password')
+        ctx.logger.info('Getting shared resource: {} to {}'.format(
+            new_source_location, node_instance_dir))
     source_tmp_path = get_shared_resource(
-        new_source_location, dir=get_node_instance_dir(target=target),
+        new_source_location, dir=node_instance_dir,
         username=new_source_username,
         password=new_source_password)
     ctx.logger.info('Source Temp Path {}'.format(source_tmp_path))
@@ -660,11 +652,11 @@ def get_terraform_source():
 @contextmanager
 def update_terraform_source(new_source=None, new_source_path=None):
     """Replace the stored terraform resource template data"""
-    if not new_source and not new_source_path:
-        material = get_terraform_source_material()
+    if new_source:
+        material = update_terraform_source_material(new_source)
     else:
         # If the plan operation passes NOone, then this would error.
-        material = update_terraform_source_material(new_source)
+        material = get_terraform_source_material()
     return _yield_terraform_source(material, new_source_path)
 
 
@@ -676,8 +668,14 @@ def _yield_terraform_source(material, source_path=None):
     module_root = get_storage_path()
     source_path = source_path or get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
+    ctx.logger.debug('The storage root tree:\n{}'.format(tree(module_root)))
     try:
         yield get_node_instance_dir(source_path=source_path)
+    except Exception as e:
+        _, _, tb = sys.exc_info()
+        cause = exception_to_error_cause(e, tb)
+        ctx.logger.error(str(cause))
+        raise e
     finally:
         ctx.logger.debug('Re-packaging Terraform files from {loc}'.format(
             loc=module_root))
@@ -705,7 +703,6 @@ def _yield_terraform_source(material, source_path=None):
                             'runtime properties.')
             ctx.instance.runtime_properties['terraform_source'] = \
                 base64_rep
-
         ctx.instance.runtime_properties['resource_config'] = \
             get_resource_config()
         if source_path:
@@ -888,3 +885,60 @@ class CapturingOutputConsumer(OutputConsumer):
 
     def get_buffer(self):
         return self.buffer
+
+
+def tree(dir_path, level=-1, limit_to_directories=False, length_limit=1000000):
+    """Stolen from here: https://stackoverflow.com/questions/9727673/
+    list-directory-tree-structure-in-python
+
+    :param dir_path:
+    :param level:
+    :param limit_to_directories:
+    :param length_limit:
+    :return:
+    """
+
+    space = '    '
+    branch = '│   '
+    tee = '├── '
+    last = '└── '
+
+    if not isinstance(dir_path, Path):
+        dir_path = Path(dir_path)
+
+    files = 0
+    directories = 0
+    tree_lines = []
+
+    def inner(dir_path, prefix=None, level=-1):
+
+        prefix = prefix or ''
+
+        nonlocal files, directories
+        if not level:
+            return
+        if limit_to_directories:
+            contents = [d for d in dir_path.iterdir() if d.is_dir()]
+        else:
+            contents = list(dir_path.iterdir())
+        pointers = [tee] * (len(contents) - 1) + [last]
+        for pointer, path in zip(pointers, contents):
+            if path.is_dir():
+                yield prefix + pointer + path.name
+                directories += 1
+                extension = branch if pointer == tee else space
+                yield from inner(path, prefix=prefix+extension, level=level-1)
+            elif not limit_to_directories:
+                yield prefix + pointer + path.name
+                files += 1
+    tree_lines.append(dir_path.name)
+    iterator = inner(dir_path, level=level)
+    for line in islice(iterator, length_limit):
+        tree_lines.append(line)
+    if next(iterator, None):
+        tree_lines.append(
+            '... length_limit, {}, reached, counted:'.format(length_limit))
+    tree_lines.append(
+        '\n{} directories'.format(directories) + (
+            ', {} files'.format(files) if files else ''))
+    return '\n'.join(tree_lines)

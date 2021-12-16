@@ -44,6 +44,7 @@ setup(
     packages=['cloudify_tf', 'cloudify_tf/terraform'],
     license='LICENSE',
     install_requires=[
+        "Pathlib",
         "cloudify-common>=4.5.5",
         "pyyaml>=4.2b1",
         "networkx==1.9.1",
