@@ -353,11 +353,11 @@ commands:
           at: workspace
       - run:
           name: update pip
-          command: pip install -U pip===20.3.3
+          command: pip3 install -U pip===20.3.3
       - run:
           name: install cloudify
           command: |
-            pip install -r test-requirements.txt
+            pip3 install -r test-requirements.txt
       - run:
           name: download manager docker image
           command:  wget http://repository.cloudifysource.org/cloudify/6.2.0/ga-release/cloudify-manager-aio-docker-6.2.0-ga.tar
