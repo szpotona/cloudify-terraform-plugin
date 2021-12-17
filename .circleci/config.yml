@@ -346,6 +346,9 @@ commands:
   create_manager_container_py3:
     steps:
       - run:
+          name: "Set Pyenv"
+          command: pyenv global 3.6.5
+      - run:
           name: "Pull Submodules"
           command: |
             git submodule update --init --recursive --remote
@@ -375,7 +378,7 @@ commands:
           command: docker exec -it cfy_manager cfy_manager wait-for-starter
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
+          command: pip3 install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
 
   prepare_test_manager:
     steps:
