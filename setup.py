@@ -54,5 +54,5 @@ setup(
     test_requires=[
         "cloudify-common>=4.5.5",
         "nose==1.3.7",
-    ]
+    ]  # noqa
 )

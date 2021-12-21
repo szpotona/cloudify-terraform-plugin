@@ -54,7 +54,9 @@ from .constants import (
     DRIFTS,
     IS_DRIFTED,
     MASKED_ENV_VARS,
+    HCL_STR_TEMPLATE,
     TERRAFORM_BACKEND,
+    HCL_DICT_TEMPLATE,
     TERRAFORM_STATE_FILE
 )
 from ._compat import text_type, StringIO, PermissionDenied, mkdir_p
@@ -768,15 +770,32 @@ def get_terraform_state_file(ctx):
     return state_file_path
 
 
+def translate_json_dict_to_hcl_dict(d, indent=None):
+    indent = indent or 1
+    option_string = ''
+    for option_name, option_value in d.items():
+        option_string += '  ' * indent
+        if isinstance(option_value, text_type):
+            option_string += HCL_STR_TEMPLATE.format(
+                indent='  ' * indent,
+                name=option_name,
+                value=option_value)
+        elif isinstance(option_value, dict):
+            option_value = translate_json_dict_to_hcl_dict(
+                option_value, indent)
+            option_string += HCL_DICT_TEMPLATE.format(
+                name=option_name,
+                value=option_value,
+                indent='  ' * indent)
+    return option_string
+
+
 def create_backend_string(name, options):
     # TODO: Get a better way of setting backends.
-    option_string = ''
-    for option_name, option_value in options.items():
-        if isinstance(option_value, text_type):
-            option_value = '"%s"' % option_value
-        option_string += '    %s = %s\n' % (option_name, option_value)
-    backend_block = TERRAFORM_BACKEND % (name, option_string)
-    return 'terraform {\n%s\n}' % backend_block
+    option_string = translate_json_dict_to_hcl_dict(options)
+    backend_block = TERRAFORM_BACKEND.format(
+        indent='  ', name=name, value=option_string)
+    return 'terraform {{\n{}\n}}'.format(backend_block)
 
 
 def refresh_resources_properties(state, output):

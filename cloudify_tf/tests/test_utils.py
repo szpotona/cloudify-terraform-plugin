@@ -15,7 +15,7 @@
 from cloudify.state import current_ctx
 
 from . import TestBase
-from ..utils import refresh_resources_drifts_properties
+from .. import utils
 from ..constants import DRIFTS, IS_DRIFTED
 
 
@@ -57,14 +57,14 @@ class TestUtils(TestBase):
         self.fake_plan_json["resource_changes"] = []
         ctx = self.mock_ctx("test_no_op_drifts", None)
         current_ctx.set(ctx=ctx)
-        refresh_resources_drifts_properties(self.fake_plan_json)
+        utils.refresh_resources_drifts_properties(self.fake_plan_json)
         self.assertEqual(ctx.instance.runtime_properties[DRIFTS], {})
         self.assertEqual(ctx.instance.runtime_properties[IS_DRIFTED], False)
 
     def test_refresh_resources_drifts_properties_no_op_drifts(self):
         ctx = self.mock_ctx("test_no_op_drifts", None)
         current_ctx.set(ctx=ctx)
-        refresh_resources_drifts_properties(self.fake_plan_json)
+        utils.refresh_resources_drifts_properties(self.fake_plan_json)
         self.assertEqual(ctx.instance.runtime_properties[DRIFTS], {})
         self.assertEqual(ctx.instance.runtime_properties[IS_DRIFTED], False)
 
@@ -73,7 +73,57 @@ class TestUtils(TestBase):
         current_ctx.set(ctx=ctx)
         # Change the operation needed just to check we store the changes
         self.vpc_change["actions"] = ["update"]
-        refresh_resources_drifts_properties(self.fake_plan_json)
+        utils.refresh_resources_drifts_properties(self.fake_plan_json)
         self.assertEqual(ctx.instance.runtime_properties[IS_DRIFTED], True)
         self.assertDictEqual(ctx.instance.runtime_properties[DRIFTS],
                              {self.resource_name: self.vpc_change})
+
+    def test_backend_string(self):
+        backend = {
+            'name': 'foo',
+            'options': {
+                'bucket': 'bucket_name',
+                'key': 'key_name',
+                'region': 'us-east-1'
+            }
+        }
+        backend_hcl = """terraform {
+  backend "foo" {
+    bucket = "bucket_name"
+    key = "key_name"
+    region = "us-east-1"
+
+  }
+
+}"""
+        backend_with_dict = {
+            'name': 'foo',
+            'options': {
+                'hostname': 'bar',
+                'organization': 'baz',
+                'workspaces': {
+                    'name': 'taco'
+                },
+                'token': '%#(##'
+            }
+        }
+        backed_with_dict_hcl = """terraform {
+  backend "foo" {
+    hostname = "bar"
+    organization = "baz"
+    workspaces {
+      name = "taco"
+
+    }
+    token = "%#(##"
+
+  }
+
+}"""
+
+        self.assertEquals(backend_hcl, utils.create_backend_string(
+            backend['name'], backend['options']))
+        self.assertEquals(backed_with_dict_hcl,
+                          utils.create_backend_string(
+                              backend_with_dict['name'],
+                              backend_with_dict['options']))
