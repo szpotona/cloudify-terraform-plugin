@@ -51,7 +51,7 @@ class FailedPlanValidation(NonRecoverableError):
 
 
 def compare_plan_results(new_plan, old_plan, force):
-    if old_plan and old_plan != new_plan and not force:
+    if old_plan != new_plan:
         ctx_from_imports.logger.debug('New plan and old plan diff {}'.format(
             set(old_plan) ^ set(new_plan)))
         raise FailedPlanValidation(
@@ -62,10 +62,11 @@ def compare_plan_results(new_plan, old_plan, force):
 def _apply(tf, old_plan=None, force=False):
     try:
         tf.init()
-        new_plan = tf.plan_and_show()
-        compare_plan_results(new_plan, old_plan, force)
+        if old_plan and not force:
+            new_plan = tf.plan_and_show()
+            compare_plan_results(new_plan, old_plan, force)
         tf.apply()
-        tf_state = tf.state_pull()
+        tf_state = tf.show()
         tf_output = tf.output()
     except FailedPlanValidation:
         raise
@@ -80,6 +81,7 @@ def _apply(tf, old_plan=None, force=False):
 def _plan(tf):
     try:
         tf.init()
+        tf.state_pull()
         return tf.plan_and_show()
     except Exception as ex:
         _, _, tb = sys.exc_info()
@@ -151,7 +153,6 @@ def destroy(ctx, tf, **_):
 
 def _destroy(tf):
     try:
-        tf.init()
         tf.plan()
         tf.destroy()
     except Exception as ex:

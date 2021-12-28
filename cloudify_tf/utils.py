@@ -225,6 +225,7 @@ def _unzip_archive(archive_path, target_directory, source_path=None, **_):
 
     src = unzip_archive(archive_path, skip_parent_directory=False)
     copy_directory(src, target_directory)
+    remove_dir(src)
     return target_directory
 
 
@@ -444,7 +445,14 @@ def update_terraform_source_material(new_source, target=False):
     # By getting here we will have extracted source
     # Zip the file to store in runtime
     terraform_source_zip = _zip_archive(source_tmp_path)
-    return _file_to_base64(terraform_source_zip)
+    bytes_source = _file_to_base64(terraform_source_zip)
+    os.remove(terraform_source_zip)
+
+    if os.path.abspath(os.path.dirname(source_tmp_path)) != \
+            os.path.abspath(get_node_instance_dir(target)):
+        remove_dir(os.path.dirname(source_tmp_path))
+
+    return bytes_source
 
 
 def get_terraform_source_material(target=False):
@@ -580,7 +588,12 @@ def create_plugins_dir(plugins_dir=None):
 def remove_dir(folder, desc=''):
     if os.path.isdir(folder):
         ctx.logger.info('Removing {desc}: {dir}'.format(desc=desc, dir=folder))
-        shutil.rmtree(folder)
+        try:
+            shutil.rmtree(folder)
+        except OSError as e:
+            ctx.logger.error(
+                'Unable to safely remove temporary extraction of archive. '
+                'Error: {}'.format(str(e)))
     elif os.path.islink(folder):
         ctx.logger.info('Unlinking: {}'.format(folder))
         os.unlink(folder)
@@ -639,7 +652,6 @@ def extract_binary_tf_data(root_dir, data, source_path):
     # By getting here, "terraform_source_zip" is the path
     #  to a ZIP file containing the Terraform files.
     _unzip_archive(terraform_source_zip, root_dir, source_path)
-    os.remove(terraform_source_zip)
 
 
 @contextmanager
@@ -671,8 +683,10 @@ def _yield_terraform_source(material, source_path=None):
     source_path = source_path or get_source_path()
     extract_binary_tf_data(module_root, material, source_path)
     ctx.logger.debug('The storage root tree:\n{}'.format(tree(module_root)))
+    path_to_init_dir = get_node_instance_dir(source_path=source_path)
+    try_to_copy_old_state_file(path_to_init_dir)
     try:
-        yield get_node_instance_dir(source_path=source_path)
+        yield path_to_init_dir
     except Exception as e:
         _, _, tb = sys.exc_info()
         cause = exception_to_error_cause(e, tb)
@@ -710,6 +724,18 @@ def _yield_terraform_source(material, source_path=None):
         if source_path:
             ctx.instance.runtime_properties['resource_config'][
                 'source_path'] = source_path
+        ctx.instance.runtime_properties['previous_tf_state_file'] = \
+            get_terraform_state_file(path_to_init_dir)
+
+
+def try_to_copy_old_state_file(target_dir):
+    for p in os.listdir(target_dir):
+        if p.endswith('tfstate'):
+            return
+    p = ctx.instance.runtime_properties.get(
+        'previous_tf_state_file')
+    if p and os.path.exists(p) and os.stat(p).st_size:
+        shutil.copy2(p, target_dir)
 
 
 def get_node_instance_dir(target=False, source=False, source_path=None):
@@ -731,11 +757,16 @@ def get_node_instance_dir(target=False, source=False, source_path=None):
     return folder
 
 
-def get_terraform_state_file(ctx):
+def get_terraform_state_file(target_dir=None):
     """Create or dump the state. This is only used in the
     terraform.refresh_resources operations and it's possible we can
     get rid of it.
     """
+
+    for p in os.listdir(target_dir):
+        if p.endswith('tfstate'):
+            return os.path.join(target_dir, p)
+
     ctx.logger.info('Getting TF statefile.')
     storage_path = get_storage_path()
     state_file_path = os.path.join(storage_path, TERRAFORM_STATE_FILE)
@@ -745,10 +776,15 @@ def get_terraform_state_file(ctx):
     # with tempfile.NamedTemporaryFile(delete=False) as f:
     with tempfile.NamedTemporaryFile() as f:
         base64.decode(StringIO(encoded_source), f)
-        extracted_source = _unzip_archive(f.name,
-                                          storage_path,
-                                          source_path)
-    # update_source_path()
+        try:
+            extracted_source = _unzip_archive(f.name,
+                                              storage_path,
+                                              source_path)
+        except zipfile.BadZipFile:
+            extracted_source = None
+
+    if not extracted_source:
+        return
 
     for dir_name, subdirs, filenames in os.walk(extracted_source):
         for filename in filenames:

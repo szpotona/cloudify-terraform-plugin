@@ -37,7 +37,8 @@ class Terraform(object):
                  environment_variables=None,
                  backend=None,
                  provider_upgrade=False,
-                 additional_args=None):
+                 additional_args=None,
+                 version=None):
 
         backend = backend or {}
 
@@ -46,7 +47,7 @@ class Terraform(object):
         self.root_module = root_module
         self.logger = logger
         self.additional_args = additional_args
-        self._version = {}
+        self._version = version
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -221,9 +222,11 @@ class Terraform(object):
         with self.runtime_file(command):
             return self.execute(command)
 
-    def show(self, plan_file_path):
-        command = self._tf_command(
-            ['show', '-no-color', '-json', plan_file_path])
+    def show(self, plan_file_path=None):
+        options = ['show', '-no-color', '-json']
+        if plan_file_path:
+            options.append(plan_file_path)
+        command = self._tf_command(options)
         output = self.execute(command, False)
         if output:
             return json.loads(output)
@@ -249,15 +252,21 @@ class Terraform(object):
         if not os.path.exists(plugins_dir) and utils.is_using_existing():
             utils.mkdir_p(plugins_dir)
         env_variables = resource_config.get('environment_variables')
+        terraform_version = ctx.instance.runtime_properties.get(
+            'terraform_version', {})
         tf = Terraform(
                 ctx.logger,
                 executable_path,
                 plugins_dir,
                 terraform_source,
                 variables=resource_config.get('variables'),
-                environment_variables=env_variables,
+                environment_variables=env_variables or {},
                 backend=resource_config.get('backend'),
                 provider_upgrade=provider_upgrade,
-                additional_args=general_executor_process)
+                additional_args=general_executor_process,
+                version=terraform_version)
         tf.put_backend()
+        if not terraform_version:
+            ctx.instance.runtime_properties['terraform_version'] = \
+                tf.version
         return tf

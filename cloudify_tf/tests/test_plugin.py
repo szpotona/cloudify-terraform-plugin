@@ -140,8 +140,11 @@ class TestPlugin(TestBase):
             ctx.target.instance.runtime_properties.get("executable_path"))
 
     @patch('cloudify_tf.utils._unzip_archive')
+    @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
     @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
+    @patch('cloudify_tf.terraform.Terraform.terraform_outdated',
+           return_value=False)
     def test_apply_no_output(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
         ctx = self.mock_ctx("test_apply_no_output", conf)
@@ -158,18 +161,20 @@ class TestPlugin(TestBase):
         mock_tf_apply.plan.return_value = 'terraform plan'
         mock_tf_apply.apply.return_value = 'terraform executing'
         mock_tf_apply.state_pull.return_value = tf_pulled_resources
+        mock_tf_apply.show.return_value = tf_pulled_resources
         mock_tf_apply.output.return_value = tf_output
 
         with patch('cloudify_tf.terraform.Terraform.from_ctx',
                    return_value=mock_tf_apply):
             apply(**kwargs)
-            self.assertTrue(mock_tf_apply.state_pull.called)
+            self.assertTrue(mock_tf_apply.show.called)
             self.assertEqual(ctx.instance.runtime_properties['resources'],
                              {'eip': tf_pulled_resources.get('resources')[0]})
             self.assertEqual(ctx.instance.runtime_properties['outputs'],
                              tf_output)
 
     @patch('cloudify_tf.utils._unzip_archive')
+    @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
     @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
     @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
     def test_apply_with_output(self, *_):
@@ -188,18 +193,20 @@ class TestPlugin(TestBase):
         mock_tf_apply.plan.return_value = 'terraform plan'
         mock_tf_apply.apply.return_value = 'terraform executing'
         mock_tf_apply.state_pull.return_value = tf_pulled_resources
+        mock_tf_apply.show.return_value = tf_pulled_resources
         mock_tf_apply.output.return_value = tf_output
 
         with patch('cloudify_tf.terraform.Terraform.from_ctx',
                    return_value=mock_tf_apply):
             apply(**kwargs)
-            self.assertTrue(mock_tf_apply.state_pull.called)
+            self.assertTrue(mock_tf_apply.show.called)
             self.assertEqual(ctx.instance.runtime_properties['resources'],
                              {'eip': tf_pulled_resources.get('resources')[0]})
             self.assertEqual(ctx.instance.runtime_properties['outputs'],
                              tf_output)
 
     @patch('cloudify_tf.terraform.Terraform.set_plugins_dir')
+    @patch('cloudify_tf.terraform.Terraform.version')
     @patch('cloudify_tf.utils.get_executable_path')
     @patch('cloudify_tf.utils.get_plugins_dir')
     @patch('cloudify_tf.utils.install_binary')
