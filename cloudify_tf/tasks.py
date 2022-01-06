@@ -111,6 +111,24 @@ def plan(ctx, tf, source=None, source_path=None, **_):
 
 @operation
 @with_terraform
+def check_status(ctx, tf, **_):
+    """
+    Execute `terraform state pull`.
+    """
+    status_problems = tf.plan_and_show_state()
+    if status_problems:
+        ctx.abort_operation(
+            'The cloudify.nodes.terraform.Module node template {} '
+            'has status problems with these nodes: {}'.format(
+                ctx.instance.id, status_problems))
+    else:
+        ctx.returns(
+            'The cloudify.nodes.terraform.Module node template {} '
+            'has no status problems.'.format(ctx.instance.id))
+
+
+@operation
+@with_terraform
 def state_pull(ctx, tf, **_):
     """
     Execute `terraform state pull`.

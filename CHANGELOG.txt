@@ -1,3 +1,4 @@
+0.18.5: RD-3880 Report check_status for TF Modules.
 0.18.4: RD-3579 fix The Terraform plugin creates lots of temp files and is failing to clean them up.
 0.18.3: RD-3723 Handle Backends With Dicts
 0.18.2: RD-3769-Handle-Dirs-In-Dirs RD-3772 Display TF Dir Structure in Log

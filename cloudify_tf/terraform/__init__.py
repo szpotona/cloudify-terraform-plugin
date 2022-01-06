@@ -222,6 +222,14 @@ class Terraform(object):
         with self.runtime_file(command):
             return self.execute(command)
 
+    def state_list(self, plan_file_path=None):
+        options = ['state', 'list']
+        if plan_file_path:
+            options.append('-state={}'.format(plan_file_path))
+        command = self._tf_command(options)
+        output = self.execute(command)
+        return output
+
     def show(self, plan_file_path=None):
         options = ['show', '-no-color', '-json']
         if plan_file_path:
@@ -239,6 +247,52 @@ class Terraform(object):
         with tempfile.NamedTemporaryFile() as plan_file:
             self.plan(plan_file.name)
             return self.show(plan_file.name)
+
+    def plan_and_show_state(self):
+        """
+        Execute terraform plan,
+        then terraform show on the generated tfplan file
+        """
+        status_problems = []
+        with tempfile.NamedTemporaryFile() as plan_file:
+            self.plan(plan_file.name)
+            plan = self.show(plan_file.name)
+            self.refresh()
+            for key, value in plan['planned_values']['root_module'].items():
+                if key == 'resources':
+                    status_problems.extend(
+                        self._show_state_resource_list(value))
+                elif key == 'child_modules':
+                    status_problems.extend(self._show_state_of_modules(value))
+        return status_problems
+
+    def _show_state_of_modules(self, value):
+        status_problems = []
+        for module in value:
+            if not isinstance(module, dict) or 'resources' not in module:
+                continue
+            status_problems.extend(self._show_state_resource_list(
+                module['resources']))
+        return status_problems
+
+    def _show_state_resource_list(self, value):
+        status_problems = []
+        for resource in value:
+            try:
+                self.show_state(
+                    resource['address'],
+                    os.path.join(self.root_module, 'terraform.tfstate'))
+            except Exception:
+                status_problems.append(resource)
+        return status_problems
+
+    def show_state(self, resource_name, plan_file_path=None):
+        options = ['state', 'show', '-no-color']
+        if plan_file_path:
+            options.append('-state={}'.format(plan_file_path))
+        options.append(resource_name)
+        command = self._tf_command(options)
+        return self.execute(command)
 
     @staticmethod
     def from_ctx(ctx, terraform_source):
