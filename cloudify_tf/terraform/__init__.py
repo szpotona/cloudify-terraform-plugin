@@ -70,9 +70,24 @@ class Terraform(object):
     def env(self):
         return self._env
 
+    @env.setter
+    def env(self, value):
+        new_value = self.convert_bools_in_env(value)
+        if self._env:
+            self._env.update(new_value)
+        else:
+            self._env = new_value
+
     @property
     def variables(self):
         return self._variables
+
+    @variables.setter
+    def variables(self, value):
+        if self._variables:
+            self._variables.update(value)
+        else:
+            self._variables = value
 
     @property
     def backend(self):

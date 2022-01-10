@@ -94,12 +94,39 @@ def _plan(tf):
             causes=[exception_to_error_cause(ex, tb)])
 
 
+def _handle_new_vars(runtime_props,
+                     tf,
+                     variables=None,
+                     environment_variables=None,
+                     update=False):
+
+    if variables:
+        tf.variables = variables
+        if update:
+            runtime_props['resource_config']['variables'] = tf.variables
+    if environment_variables:
+        tf.env = environment_variables
+        if update:
+            runtime_props['resource_config']['environment_variables'] = tf.env
+
+
 @operation
 @with_terraform
-def plan(ctx, tf, source=None, source_path=None, **_):
+def plan(ctx,
+         tf,
+         source=None,
+         source_path=None,
+         variables=None,
+         environment_variables=None,
+         **_):
     """
     Execute `terraform plan`.
     """
+    _handle_new_vars(ctx.instance.runtime_properties,
+                     tf,
+                     variables,
+                     environment_variables)
+
     if source or source_path:
         with utils.update_terraform_source(source, source_path) as tf_src:
             tf = Terraform.from_ctx(ctx, tf_src)
@@ -182,10 +209,22 @@ def _destroy(tf):
 
 @operation
 @with_terraform
-def reload_template(source, source_path, destroy_previous, ctx, tf, **_):
+def reload_template(ctx,
+                    tf,
+                    source=None,
+                    source_path=None,
+                    destroy_previous=False,
+                    variables=None,
+                    environment_variables=None,
+                    **_):
     """
     Terraform reload plan given new location as input
     """
+    _handle_new_vars(ctx.instance.runtime_properties,
+                     tf,
+                     variables,
+                     environment_variables,
+                     update=True)
     if not source:
         raise NonRecoverableError(
             "New source path/URL for Terraform template was not provided")

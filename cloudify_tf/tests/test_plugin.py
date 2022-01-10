@@ -221,3 +221,6 @@ class TestPlugin(TestBase):
         current_ctx.set(ctx=ctx)
         t = Terraform.from_ctx(ctx, 'foo')
         self.assertEqual(t.env, {'true': 'true', 'false': 'false'})
+        t.env = {'null': 'null'}
+        self.assertEqual(t.env,
+                         {'true': 'true', 'false': 'false', 'null': 'null'})
