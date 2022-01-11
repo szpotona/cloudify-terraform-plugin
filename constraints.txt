@@ -6,3 +6,4 @@ pynacl==1.4.0
 decorator==4.4.2
 gitdb>=4.0.1,<5
 decorator==4.4.2
+psutil==5.8.0
