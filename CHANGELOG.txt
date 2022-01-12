@@ -1,3 +1,4 @@
+0.18.7: RD-3968 Reload params override.
 0.18.6: RD-3728 Terraform Plan Params
 0.18.5: RD-3880 Report check_status for TF Modules.
 0.18.4: RD-3579 fix The Terraform plugin creates lots of temp files and is failing to clean them up.

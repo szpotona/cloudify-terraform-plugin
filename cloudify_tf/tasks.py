@@ -31,7 +31,7 @@ from .terraform import Terraform
 
 @operation
 @with_terraform
-def apply(ctx, tf, force=False, **_):
+def apply(ctx, tf, force=False, **kwargs):
     """
     Execute `terraform apply`.
     """
@@ -39,8 +39,11 @@ def apply(ctx, tf, force=False, **_):
         resource_config = utils.get_resource_config()
         source = resource_config.get('source')
         source_path = resource_config.get('source_path')
-        reload_template(
-            source, source_path, destroy_previous=False, ctx=ctx, tf=tf)
+        _reload_template(ctx,
+                         tf,
+                         source,
+                         source_path,
+                         **kwargs)
     else:
         old_plan = ctx.instance.runtime_properties.get('plan')
         _apply(tf, old_plan, force)
@@ -207,27 +210,31 @@ def _destroy(tf):
             causes=[exception_to_error_cause(ex, tb)])
 
 
-@operation
-@with_terraform
-def reload_template(ctx,
-                    tf,
-                    source=None,
-                    source_path=None,
-                    destroy_previous=False,
-                    variables=None,
-                    environment_variables=None,
-                    **_):
-    """
-    Terraform reload plan given new location as input
-    """
+def _reload_template(ctx,
+                     tf,
+                     source=None,
+                     source_path=None,
+                     variables=None,
+                     environment_variables=None,
+                     destroy_previous=False,
+                     **_):
+
     _handle_new_vars(ctx.instance.runtime_properties,
                      tf,
                      variables,
                      environment_variables,
                      update=True)
-    if not source:
+    if not any([source, source_path, variables, environment_variables]):
         raise NonRecoverableError(
-            "New source path/URL for Terraform template was not provided")
+            "A new value for one of the following parameters must be provided:"
+            " source, source_path, variables, environment_variables.")
+
+    resource_config = utils.get_resource_config()
+    if not source:
+        source = resource_config.get('source')
+    if not source_path:
+        source_path = resource_config.get('source_path')
+
     source = utils.handle_previous_source_format(source)
     if destroy_previous:
         destroy(tf=tf, ctx=ctx)
@@ -239,6 +246,30 @@ def reload_template(ctx,
         ctx.instance.runtime_properties['resource_config'] = \
             utils.get_resource_config()
         _state_pull(new_tf)
+
+
+@operation
+@with_terraform
+def reload_template(ctx,
+                    tf,
+                    source=None,
+                    source_path=None,
+                    destroy_previous=False,
+                    variables=None,
+                    environment_variables=None,
+                    **kwargs):
+    """
+    Terraform reload plan given new location as input
+    """
+
+    _reload_template(ctx,
+                     tf,
+                     source,
+                     source_path,
+                     variables,
+                     environment_variables,
+                     destroy_previous,
+                     **kwargs)
 
 
 @operation

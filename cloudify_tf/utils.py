@@ -885,13 +885,14 @@ def is_url(string):
 
 
 def handle_previous_source_format(source):
+    ctx.logger.info('Source: {}'.format(source))
     if isinstance(source, dict):
         return source
     elif isinstance(source, str) and is_url(source):
         return {'location': source}
     try:
         return json.loads(source)
-    except ValueError:
+    except (ValueError, TypeError):
         if is_url(source):
             return {'location': source}
     return source
