@@ -15,7 +15,6 @@
 
 import os
 import sys
-import copy
 import json
 import base64
 import ntpath
@@ -33,14 +32,21 @@ from pathlib import Path
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
-from cloudify_common_sdk.utils import get_deployment_dir, \
-                                      get_cloudify_version, \
-                                      v1_gteq_v2
+from cloudify_common_sdk.utils import (
+    get_cloudify_version,
+    v1_gteq_v2,
+    get_node_instance_dir,
+    get_ctx_node,
+    get_ctx_instance,
+    copy_directory,
+    download_file,
+    find_rel_by_type,
+    unzip_and_set_permissions
+)
 from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
 from cloudify_common_sdk.resource_downloader import get_shared_resource
 from cloudify_common_sdk.resource_downloader import TAR_FILE_EXTENSTIONS
-from cloudify_common_sdk.processes import general_executor, process_execution
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
@@ -53,71 +59,12 @@ from .constants import (
     STATE,
     DRIFTS,
     IS_DRIFTED,
-    MASKED_ENV_VARS,
     HCL_STR_TEMPLATE,
     TERRAFORM_BACKEND,
     HCL_DICT_TEMPLATE,
     TERRAFORM_STATE_FILE
 )
-from ._compat import text_type, StringIO, PermissionDenied, mkdir_p
-
-
-def download_file(source, destination):
-    run_subprocess(['curl', '-o', source, destination])
-
-
-def run_subprocess(command,
-                   logger=None,
-                   cwd=None,
-                   additional_env=None,
-                   additional_args=None,
-                   return_output=False):
-    """Execute a shell script or command."""
-
-    logger = logger or ctx.logger
-    cwd = cwd or get_node_instance_dir()
-
-    if additional_args is None:
-        additional_args = {}
-
-    args_to_pass = copy.deepcopy(additional_args)
-
-    if additional_env:
-        passed_env = args_to_pass.setdefault('env', {})
-        passed_env.update(os.environ)
-        passed_env.update(additional_env)
-
-    printed_args = copy.deepcopy(args_to_pass)
-    printed_env = printed_args.get('env', {})
-    for env_var in printed_env.keys():
-        if env_var in MASKED_ENV_VARS:
-            printed_env[env_var] = '****'
-
-    logger.info('Running: command={cmd}, '
-                'cwd={cwd}, '
-                'additional_args={args}'.format(
-                    cmd=command,
-                    cwd=cwd,
-                    args=printed_args))
-
-    general_executor_params = copy.deepcopy(args_to_pass)
-    general_executor_params['cwd'] = cwd
-    if 'log_stdout' not in general_executor_params:
-        general_executor_params['log_stdout'] = return_output
-    if 'log_stderr' not in general_executor_params:
-        general_executor_params['log_stderr'] = True
-    if 'stderr_to_stdout' not in general_executor_params:
-        general_executor_params['stderr_to_stdout'] = False
-    script_path = command.pop(0)
-    general_executor_params['args'] = command
-    general_executor_params['max_sleep_time'] = get_node().properties.get(
-        'max_sleep_time', 300)
-
-    return process_execution(
-        general_executor,
-        script_path,
-        ctx,
-        general_executor_params)
+from ._compat import text_type, StringIO, mkdir_p
 
 
 def exclude_file(dirname, filename, excluded_files):
@@ -155,7 +102,7 @@ def exclude_dirs(dirname, subdirs, excluded_files):
 def file_storage_breaker(filepath):
     filesize = Path(filepath).stat().st_size
     if filesize > 50000:
-        max_stored_filesize = get_node().properties.get(
+        max_stored_filesize = get_ctx_node().properties.get(
             'max_stored_filesize', 500000)
         if filesize >= max_stored_filesize:
             ctx.logger.warn(
@@ -164,7 +111,7 @@ def file_storage_breaker(filepath):
                 .format(f=filepath, s=filesize, m=max_stored_filesize))
             return True
     elif '.terraform/plugins' in filepath:
-        store_plugins_dir = get_node().properties.get(
+        store_plugins_dir = get_ctx_node().properties.get(
             'store_plugins_dir', False)
         if not store_plugins_dir:
             ctx.logger.warn(
@@ -268,60 +215,6 @@ def _create_source_path(source_tmp_path):
     return source_tmp_path
 
 
-def set_permissions(target_file):
-    run_subprocess(
-        ['chmod', 'u+x', target_file],
-        ctx.logger
-    )
-
-
-def copy_directory(src, dst):
-    run_subprocess(['cp', '-r', os.path.join(src, '*'), dst])
-
-
-def unzip_and_set_permissions(zip_file, target_dir):
-    """Unzip a file and fix permissions on the files."""
-    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-        for name in zip_ref.namelist():
-            try:
-                zip_ref.extract(name, target_dir)
-            except PermissionDenied as e:
-                raise NonRecoverableError(
-                    'Attempted to download a file {name} to {folder}. '
-                    'Failed with permission denied {err}.'.format(
-                        name=name,
-                        folder=target_dir,
-                        err=e))
-            target_file = os.path.join(target_dir, name)
-            ctx.logger.info('Setting executable permission on '
-                            '{loc}.'.format(loc=target_file))
-            set_permissions(target_file)
-
-
-def get_instance(_ctx=None, target=False, source=False):
-    """Get a CTX instance, either NI, target or source."""
-    _ctx = _ctx or ctx
-    if _ctx.type == RELATIONSHIP_INSTANCE:
-        if target:
-            return _ctx.target.instance
-        elif source:
-            return _ctx.source.instance
-        return _ctx.source.instance
-    else:  # _ctx.type == NODE_INSTANCE
-        return _ctx.instance
-
-
-def get_node(_ctx=None, target=False):
-    """Get a node ctx"""
-    _ctx = _ctx or ctx
-    if _ctx.type == RELATIONSHIP_INSTANCE:
-        if target:
-            return _ctx.target.node
-        return _ctx.source.node
-    else:  # _ctx.type == NODE_INSTANCE
-        return _ctx.node
-
-
 def is_using_existing(target=True):
     """Decide if we need to do this work or not."""
     resource_config = get_resource_config(target=target)
@@ -354,36 +247,8 @@ def find_terraform_node_from_rel():
         ctx.instance, 'cloudify.terraform.relationships.run_on_host')
 
 
-def find_rel_by_type(node_instance, rel_type):
-    rels = find_rels_by_type(node_instance, rel_type)
-    return rels[0] if len(rels) > 0 else None
-
-
-def find_rels_by_type(node_instance, rel_type):
-    return [x for x in node_instance.relationships
-            if rel_type in x.type_hierarchy]
-
-
-def install_binary(
-        installation_dir,
-        executable_path,
-        installation_source=None):
-
-    if installation_source:
-        installation_zip = os.path.join(installation_dir, 'tf.zip')
-        ctx.logger.info(
-            'Downloading Terraform from {source} into {zip}.'.format(
-                source=installation_source,
-                zip=installation_zip))
-        download_file(installation_zip, installation_source)
-        executable_dir = os.path.dirname(executable_path)
-        unzip_and_set_permissions(installation_zip, executable_dir)
-        os.remove(installation_zip)
-    return executable_path
-
-
 def update_resource_config(new_values, target=False):
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     resource_config = get_resource_config(target=target)
     resource_config.update(new_values)
     instance.runtime_properties['resource_config'] = resource_config
@@ -391,20 +256,20 @@ def update_resource_config(new_values, target=False):
 
 def get_resource_config(target=False):
     """Get the cloudify.nodes.terraform.Module resource_config"""
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     resource_config = instance.runtime_properties.get('resource_config')
     if not resource_config or ctx.workflow_id == 'install':
-        node = get_node(target=target)
+        node = get_ctx_node(target=target)
         resource_config = node.properties.get('resource_config', {})
     return resource_config
 
 
 def get_provider_upgrade(target=False):
     """Get the cloudify.nodes.terraform.Module provider_upgrade"""
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     provider_upgrade = instance.runtime_properties.get('provider_upgrade')
     if not provider_upgrade:
-        node = get_node(target=target)
+        node = get_ctx_node(target=target)
         provider_upgrade = node.properties.get('provider_upgrade', False)
     return provider_upgrade
 
@@ -412,11 +277,11 @@ def get_provider_upgrade(target=False):
 def get_terraform_config(target=False):
     """get the cloudify.nodes.terraform or cloudify.nodes.terraform.Module
     terraform_config"""
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     terraform_config = instance.runtime_properties.get('terraform_config')
     if terraform_config:
         return terraform_config
-    node = get_node(target=target)
+    node = get_ctx_node(target=target)
     return node.properties.get('terraform_config', {})
 
 
@@ -461,7 +326,7 @@ def get_terraform_source_material(target=False):
     However, during the install workflow, this might also be the binary
     data of a zip archive of just the plan files.
     """
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     source = instance.runtime_properties.get('terraform_source')
     if not source:
         resource_config = get_resource_config(target=target)
@@ -490,7 +355,7 @@ def get_executable_path(target=False):
     existing resource.
     Any other value will probably not work for the user.
     """
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     executable_path = instance.runtime_properties.get('executable_path')
     if not executable_path:
         terraform_config = get_terraform_config(target=target)
@@ -500,7 +365,7 @@ def get_executable_path(target=False):
             os.path.join(get_node_instance_dir(target=target), 'terraform')
     if not os.path.exists(executable_path) and \
             is_using_existing(target=target):
-        node = get_node(target=target)
+        node = get_ctx_node(target=target)
         terraform_config = node.properties.get('terraform_config', {})
         executable_path = terraform_config.get('executable_path')
     instance.runtime_properties['executable_path'] = executable_path
@@ -519,7 +384,7 @@ def get_storage_path(target=False):
         raise NonRecoverableError(
             'The property resource_config.storage_path '
             'is no longer supported.')
-    instance = get_instance(target=target)
+    instance = get_ctx_instance(target=target)
     instance.runtime_properties['storage_path'] = deployment_dir
     instance.update()
     return deployment_dir
@@ -710,7 +575,7 @@ def _yield_terraform_source(material, source_path=None):
         if v1_gteq_v2(get_cloudify_version(), "6.1.0"):
             ctx.logger.debug('Not storing zip in runtime properties in '
                              'Cloudify 6.1 and greater')
-        elif len(base64_rep) > get_node().properties.get(
+        elif len(base64_rep) > get_ctx_node().properties.get(
                 'max_runtime_property_size', 100000):
             raise Exception('Not storing terraform_source, '
                             'because its size is {}'.format(len(base64_rep)))
@@ -736,25 +601,6 @@ def try_to_copy_old_state_file(target_dir):
         'previous_tf_state_file')
     if p and os.path.exists(p) and os.stat(p).st_size:
         shutil.copy2(p, target_dir)
-
-
-def get_node_instance_dir(target=False, source=False, source_path=None):
-    """This is the place where the magic happens.
-    We put all our binaries, templates, or symlinks to those files here,
-    and then we also run all executions from here.
-    """
-    instance = get_instance(target=target, source=source)
-    folder = os.path.join(
-        get_deployment_dir(ctx.deployment.id),
-        instance.id
-    )
-    if source_path:
-        folder = os.path.join(folder, source_path)
-    if not os.path.exists(folder):
-        mkdir_p(folder)
-    ctx.logger.debug('Value deployment_dir is {loc}.'.format(
-        loc=folder))
-    return folder
 
 
 def get_terraform_state_file(target_dir=None):

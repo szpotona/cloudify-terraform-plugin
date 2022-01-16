@@ -20,6 +20,7 @@ import json
 import tempfile
 
 from contextlib import contextmanager
+from cloudify_common_sdk.utils import run_subprocess
 
 from .. import utils
 
@@ -109,7 +110,7 @@ class Terraform(object):
         return path
 
     def execute(self, command, return_output=True):
-        return utils.run_subprocess(
+        return run_subprocess(
             command,
             self.logger,
             self.root_module,

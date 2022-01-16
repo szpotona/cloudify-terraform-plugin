@@ -20,6 +20,7 @@ from cloudify.decorators import operation
 from cloudify import ctx as ctx_from_imports
 from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
+from cloudify_common_sdk.utils import get_node_instance_dir, install_binary
 
 from . import utils
 from ._compat import mkdir_p
@@ -275,7 +276,7 @@ def reload_template(ctx,
 @operation
 @skip_if_existing
 def install(ctx, **_):
-    installation_dir = utils.get_node_instance_dir()
+    installation_dir = get_node_instance_dir()
     executable_path = utils.get_executable_path()
     plugins = utils.get_plugins()
     plugins_dir = utils.get_plugins_dir()
@@ -291,8 +292,8 @@ def install(ctx, **_):
                         'If you do not have sufficient permissions, that '
                         'installation will fail.'.format(
                             loc=executable_path))
-        utils.install_binary(
-            installation_dir, executable_path, installation_source)
+        install_binary(
+            installation_dir, executable_path, installation_source, 'tf.zip')
 
     # store the values in the runtime for safe keeping -> validation
     ctx.instance.runtime_properties['executable_path'] = executable_path
@@ -334,7 +335,7 @@ def set_directory_config(ctx, **_):
     storage_path = utils.get_storage_path(target=True)
     deployment_terraform_dir = os.path.join(storage_path,
                                             '.terraform')
-    resource_node_instance_dir = utils.get_node_instance_dir(source=True)
+    resource_node_instance_dir = get_node_instance_dir(source=True)
     if not os.path.exists(resource_node_instance_dir):
         mkdir_p(resource_node_instance_dir)
     resource_terraform_dir = os.path.join(resource_node_instance_dir,

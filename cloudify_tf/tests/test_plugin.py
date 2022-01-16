@@ -82,9 +82,14 @@ class TestPlugin(TestBase):
             }
         }
 
-    @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir1)
-    @patch('cloudify_tf.utils.run_subprocess')
-    @patch('cloudify_tf.utils.install_binary')
+    @patch('cloudify_tf.tasks.get_node_instance_dir',
+           return_value=test_dir1)
+    @patch('cloudify_tf.utils.get_node_instance_dir',
+           return_value=test_dir1)
+    @patch('cloudify_common_sdk.utils.run_subprocess')
+    @patch('cloudify_common_sdk.utils.os.remove')
+    @patch('cloudify_common_sdk.utils.unzip_and_set_permissions')
+    @patch('cloudify_common_sdk.utils.install_binary', suffix='tf.zip')
     def test_install(self, *_):
         conf = self.get_terraform_conf_props(test_dir1)
         ctx = self.mock_ctx("test_install", conf)
@@ -103,8 +108,11 @@ class TestPlugin(TestBase):
             ctx.instance.runtime_properties.get("plugins_dir"),
             conf.get("terraform_config").get("plugins_dir"))
 
-    @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir2)
-    def test_set_directory_config(self, _):
+    @patch('cloudify_tf.utils.get_node_instance_dir',
+           return_value=test_dir2)
+    @patch('cloudify_tf.tasks.get_node_instance_dir',
+           return_value=test_dir2)
+    def test_set_directory_config(self, *_):
         target = MockContext({
             'instance': MockNodeInstanceContext(
                 id='terra_install-1',
@@ -142,7 +150,8 @@ class TestPlugin(TestBase):
     @patch('cloudify_tf.utils._unzip_archive')
     @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
     @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
-    @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
+    @patch('cloudify_tf.utils.get_node_instance_dir',
+           return_value=test_dir3)
     @patch('cloudify_tf.terraform.Terraform.terraform_outdated',
            return_value=False)
     def test_apply_no_output(self, *_):
@@ -176,7 +185,8 @@ class TestPlugin(TestBase):
     @patch('cloudify_tf.utils._unzip_archive')
     @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
     @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
-    @patch('cloudify_tf.utils.get_node_instance_dir', return_value=test_dir3)
+    @patch('cloudify_tf.utils.get_node_instance_dir',
+           return_value=test_dir3)
     def test_apply_with_output(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
         ctx = self.mock_ctx("test_apply_with_output", conf)
@@ -209,7 +219,7 @@ class TestPlugin(TestBase):
     @patch('cloudify_tf.terraform.Terraform.version')
     @patch('cloudify_tf.utils.get_executable_path')
     @patch('cloudify_tf.utils.get_plugins_dir')
-    @patch('cloudify_tf.utils.install_binary')
+    @patch('cloudify_common_sdk.utils.install_binary', suffix='tf.zip')
     @patch('cloudify_tf.utils.dump_file')
     def test_env_vars(self, *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
