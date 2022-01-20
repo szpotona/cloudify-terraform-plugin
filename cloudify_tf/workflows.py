@@ -62,7 +62,8 @@ def reload_resources(ctx,
                      source_path,
                      variables,
                      environment_variables,
-                     destroy_previous):
+                     destroy_previous,
+                     force=False):
     kwargs = dict(destroy_previous=destroy_previous)
     if source:
         kwargs['source'] = source
@@ -72,6 +73,8 @@ def reload_resources(ctx,
         kwargs['variables'] = variables
     if environment_variables:
         kwargs['environment_variables'] = environment_variables
+    if force:
+        kwargs['force'] = force
     _terraform_operation(
         ctx,
         "terraform.reload",

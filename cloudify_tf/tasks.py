@@ -193,7 +193,10 @@ def destroy(ctx, tf, **_):
     Execute `terraform destroy`.
     """
     _destroy(tf)
-    _state_pull(tf)
+    try:
+        _state_pull(tf)
+    except Exception as e:
+        ctx.logger.error('State pull after destroy failed: {}'.format(str(e)))
     for runtime_property in ['terraform_source',
                              'last_source_location',
                              'resource_config']:
@@ -218,6 +221,7 @@ def _reload_template(ctx,
                      variables=None,
                      environment_variables=None,
                      destroy_previous=False,
+                     force=False,
                      **_):
 
     _handle_new_vars(ctx.instance.runtime_properties,
@@ -243,7 +247,7 @@ def _reload_template(ctx,
                                        source_path) as terraform_source:
         new_tf = Terraform.from_ctx(ctx, terraform_source)
         old_plan = ctx.instance.runtime_properties.get('plan')
-        _apply(new_tf, old_plan)
+        _apply(new_tf, old_plan, force)
         ctx.instance.runtime_properties['resource_config'] = \
             utils.get_resource_config()
         _state_pull(new_tf)
@@ -258,6 +262,7 @@ def reload_template(ctx,
                     destroy_previous=False,
                     variables=None,
                     environment_variables=None,
+                    force=False,
                     **kwargs):
     """
     Terraform reload plan given new location as input
@@ -270,6 +275,7 @@ def reload_template(ctx,
                      variables,
                      environment_variables,
                      destroy_previous,
+                     force,
                      **kwargs)
 
 

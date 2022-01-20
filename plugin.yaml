@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.7'
+    package_version: '0.18.8'
 
 dsl_definitions:
 
@@ -181,6 +181,8 @@ node_types:
               default: { get_property: [SELF, resource_config, source ] }
             source_path:
               default: { get_property: [SELF, resource_config, source_path ] }
+            force:
+              default: false
         reload:
           # Reloads the Terraform template. By default, the template will be
           # read from the last location it was loaded from.
@@ -246,7 +248,7 @@ workflows:
     parameters: &terraform_plan_params
       <<: *terraform_workflow_params
       source:
-        type: string
+        # String or Dict
         default: ''
       source_path:
         type: string
@@ -265,3 +267,6 @@ workflows:
       destroy_previous:
         type: boolean
         default: false
+      force:
+        type: boolean
+        description: Force apply without matching previous plan.
