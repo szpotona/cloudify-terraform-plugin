@@ -18,6 +18,7 @@ import os
 import re
 import json
 import tempfile
+from distutils.version import LooseVersion as parse_version
 
 from contextlib import contextmanager
 from cloudify_common_sdk.utils import run_subprocess
@@ -226,7 +227,6 @@ class Terraform(object):
             return json.loads(pulled_state)
 
     def refresh(self):
-        from distutils.version import LooseVersion as parse_version
         if parse_version(self.terraform_version) >= parse_version("0.15.4"):
             command = self._tf_command(['apply',
                                         '-refresh-only',

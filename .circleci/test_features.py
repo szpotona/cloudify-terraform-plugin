@@ -16,9 +16,12 @@
 from os import environ
 from contextlib import contextmanager
 
+import pytest
+
 from boto3 import client
 from ecosystem_tests.dorkl.constansts import logger
 from ecosystem_tests.dorkl import cleanup_on_failure
+from ecosystem_tests.dorkl.exceptions import EcosystemTestException
 from ecosystem_tests.dorkl.cloudify_api import cloudify_exec, executions_start
 
 TEST_ID = environ.get('__ECOSYSTEM_TEST_ID', 'virtual-machine')
@@ -33,6 +36,7 @@ def test_cleaner_upper():
         raise
 
 
+@pytest.mark.dependency(depends=['test_plan_protection'])
 def test_drifts(*_, **__):
     with test_cleaner_upper():
         before_props = cloud_resources_node_instance_runtime_properties()
@@ -46,15 +50,37 @@ def test_drifts(*_, **__):
         raise Exception('The test_drifts test failed.')
 
 
-def reload(*_, **__):
+@pytest.mark.dependency()
+def test_plan_protection(*_, **__):
     with test_cleaner_upper():
+        params = {
+            'source': 'https://github.com/cloudify-community/tf-source/archive/refs/heads/main.zip',  # noqa
+            'source_path': 'template/modules/public_vm',
+        }
+        executions_start('terraform_plan', TEST_ID, 300, params)
+        logger.info('Wrap plan for public VM. '
+                    'Now we will run reload_terraform_template for private VM '
+                    'and it should fail.')
+        params = {
+            'source': 'https://github.com/cloudify-community/tf-source/archive/refs/heads/main.zip',  # noqa
+            'source_path': 'template/modules/private_vm',
+            'force': False
+        }
+        try:
+            executions_start('reload_terraform_template', TEST_ID, 300, params)
+        except EcosystemTestException:
+            logger.info('Apply caught our plan mismatch.')
+        else:
+            raise EcosystemTestException(
+                'Apply did not catch the plan mismatch.')
+        del params['force']
+        executions_start('terraform_plan', TEST_ID, 300, params)
+        logger.info('Now rerunning apply with a matching plan.')
         before = cloud_resources_node_instance_runtime_properties()
         logger.info('Before outputs: {before}'.format(
             before=before.get('outputs')))
-        params = {
-            'source': 'https://github.com/cloudify-community/tf-source/archive/refs/heads/main.zip',  # noqa
-            'source_path': 'template/modules/private_vm'
-        }
+        logger.info('Now rerunning plan.')
+        params['force'] = False
         executions_start('reload_terraform_template', TEST_ID, 300, params)
         after = cloud_resources_node_instance_runtime_properties()
         logger.info('After outputs: {after}'.format(

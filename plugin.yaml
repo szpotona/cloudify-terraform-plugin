@@ -270,3 +270,4 @@ workflows:
       force:
         type: boolean
         description: Force apply without matching previous plan.
+        default: false

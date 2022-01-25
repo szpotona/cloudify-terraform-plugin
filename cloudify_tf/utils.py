@@ -315,7 +315,7 @@ def update_terraform_source_material(new_source, target=False):
 
     if os.path.abspath(os.path.dirname(source_tmp_path)) != \
             os.path.abspath(get_node_instance_dir(target)):
-        remove_dir(os.path.dirname(source_tmp_path))
+        remove_dir(source_tmp_path)
 
     return bytes_source
 
@@ -452,6 +452,8 @@ def create_plugins_dir(plugins_dir=None):
 
 def remove_dir(folder, desc=''):
     if os.path.isdir(folder):
+        if len(folder.split(os.sep)) < 3:
+            return
         ctx.logger.info('Removing {desc}: {dir}'.format(desc=desc, dir=folder))
         try:
             shutil.rmtree(folder)
@@ -462,6 +464,9 @@ def remove_dir(folder, desc=''):
     elif os.path.islink(folder):
         ctx.logger.info('Unlinking: {}'.format(folder))
         os.unlink(folder)
+    elif os.path.isfile(folder):
+        if not remove_dir(folder):
+            os.remove(folder)
     else:
         ctx.logger.info(
             'Directory {dir} doesn\'t exist; skipping'.format(dir=folder))
@@ -572,9 +577,9 @@ def _yield_terraform_source(material, source_path=None):
         ctx.logger.warn('The after base64_rep size is {size}.'.format(
             size=len(base64_rep)))
 
-        if v1_gteq_v2(get_cloudify_version(), "6.1.0"):
+        if v1_gteq_v2(get_cloudify_version(), "6.0.0"):
             ctx.logger.debug('Not storing zip in runtime properties in '
-                             'Cloudify 6.1 and greater')
+                             'Cloudify 6.0.0 and greater')
         elif len(base64_rep) > get_ctx_node().properties.get(
                 'max_runtime_property_size', 100000):
             raise Exception('Not storing terraform_source, '

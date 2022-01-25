@@ -63,11 +63,18 @@ commands:
 
   prepare_test_manager:
     steps:
-      - run: ecosystem-test prepare-test-manager -l $TEST_LICENSE -es aws_access_key_id=$aws_access_key_id -es aws_secret_access_key=$aws_secret_access_key --bundle-path workspace/build/cloudify-plugins-bundle.tgz
+      - run: ecosystem-test prepare-test-manager -l $TEST_LICENSE -es aws_access_key_id=$aws_access_key_id -es aws_secret_access_key=$aws_secret_access_key --bundle-path workspace/build/cloudify-plugins-bundle-v2.tgz -p $(find ~/project/workspace/build/ -name *centos-Core*x86_64.wgn)  ~/project/plugin.yaml
 
   run_tf_vm_test:
     steps:
       - run: ecosystem-test local-blueprint-test -b examples/blueprint-examples/virtual-machine/aws-terraform.yaml --test-id=virtual-machine -i aws_region_name=us-east-1 -i env_name="$CIRCLE_BUILD_NUM" --on-failure=uninstall-force --timeout=1800 --nested-test=.circleci/test_features.py
+
+  run_ui_test:
+    steps:
+      - run: wget https://github.com/cloudify-cosmo/cloudify-stage/raw/master/test/cypress/fixtures/blueprints/topology.zip
+      - run: unzip topology.zip
+      - run: ecosystem-test local-blueprint-test -b terraform-bp/blueprint.yaml --on-failure=uninstall-force --timeout=1800 --nested-test=.circleci/test_ui_features.py
+
 
 jobs:
   integration_tests_py3:
@@ -79,6 +86,7 @@ jobs:
       - managerorb/create_manager_container_latest
       - prepare_test_manager
       - run_tf_vm_test
+      - run_ui_test
 
 workflows:
   version: 2.1
@@ -103,7 +111,7 @@ workflows:
       - wagonorb/build_bundle:
           filters:
             branches:
-              only: /master/
+              only: /([0-9\.]*\-build|master|dev)/
           requires:
             - wagonorb/wagon
             - wagonorb/arch64_wagon
