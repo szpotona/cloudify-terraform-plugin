@@ -91,10 +91,14 @@ def node_instances():
     return cloudify_exec('cfy node-instances list -d {}'.format(TEST_ID))
 
 
+def get_node_instance(name):
+    return cloudify_exec('cfy node-instances get {}'.format(name))
+
+
 def node_instance_by_name(name):
     for node_instance in node_instances():
         if node_instance['node_id'] == name:
-            return node_instance
+            return get_node_instance(node_instance['id'])
     raise Exception('No node instances found.')
 
 
