@@ -368,7 +368,7 @@ class Terraform(object):
         return tf
 
     def check_tflint(self):
-        if not hasattr(self, 'tflint'):
+        if not hasattr(self, 'tflint') or not self.tflint:
             return
         self.tflint.validate()
         self.tflint.terraform_root_module = self.root_module
