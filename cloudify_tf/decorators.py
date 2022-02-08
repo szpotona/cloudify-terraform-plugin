@@ -1,8 +1,11 @@
 from functools import wraps
 
 from .terraform import Terraform
+from .terraform.tflint import TFLint
 from .utils import (is_using_existing,
                     get_terraform_source)
+
+CREATE_OP = 'cloudify.interfaces.lifecycle.create'
 
 
 def with_terraform(func):
@@ -50,10 +53,16 @@ def with_terraform(func):
                 'uploading Terraform binaries to the Cloudify manager.')
             return
         with get_terraform_source() as terraform_source:
-            tf = Terraform.from_ctx(ctx, terraform_source)
-            if tf.terraform_outdated:
-                ctx.logger.error('Your terraform version {} is outdated. '
-                                 'Please update.'.format(tf.terraform_version))
+            tf = Terraform.from_ctx(ctx,
+                                    terraform_source,
+                                    ctx.operation.name == CREATE_OP)
+            if ctx.operation.name != CREATE_OP:
+                if tf.terraform_outdated:
+                    ctx.logger.error(
+                        'Your terraform version {} is outdated. '
+                        'Please update.'.format(tf.terraform_version))
+            if 'tflint_config' in ctx.node.properties:
+                tf.tflint = TFLint.from_ctx(_ctx=ctx)
             kwargs['tf'] = tf
             return func(*args, **kwargs)
     return f

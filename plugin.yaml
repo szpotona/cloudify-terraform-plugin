@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.8'
+    package_version: '0.18.9'
 
 dsl_definitions:
 
@@ -69,6 +69,16 @@ data_types:
         description: Should be a dictionary of environment variables to export during execution.
         required: False
 
+  cloudify.types.terraform.Provider:
+    properties:
+      name:
+        type: string
+        description: Some name.
+        required: False
+      options:
+        description: Should be a dictionary of key/values.
+        required: False
+
   cloudify.types.terraform.SourceSpecification:
     properties:
       location:
@@ -105,6 +115,12 @@ data_types:
           If a backend is not defined in source,
           and you want to use a specific backend, define that here.
         default: {}
+      provider:
+        type: list
+        description: >
+          If a provider is not defined in source,
+          and you want to use a specific provider, define that here in a list.
+        default: []
       variables:
         description: A dictionary of variables.
         required: false
@@ -113,6 +129,67 @@ data_types:
         description: A dictionary of environment variables.
         required: false
         default: {}
+
+  cloudify.types.terraform.tflint:
+    properties:
+      installation_source:
+        type: string
+        description: The URL to download the tflint binary from.
+        default: 'https://github.com/terraform-linters/tflint/releases/download/v0.34.1/tflint_linux_amd64.zip'
+      executable_path:
+        type: string
+        description: If the binary is located on the file system, this is the path on the file system.
+        required: false
+      config:
+        description: |
+          Configuration for terragrunt. It can be a list of strings or a list of dicts.
+          # If a list of dicts are provided,
+          # they should be in a format: type_name, option_name, option_value.
+          # This will be translated to HCL.
+          # For example, this dict:
+          #   - type_name: plugin
+          #     option_name: foo
+          #     option_value:
+          #       enabled: true
+          #       version: "0.1.0"
+          #       source: "github.com/org/tflint-ruleset-foo"
+          # ...will be translated to:
+          #   plugin "foo" {
+          #       enabled = true
+          #       version = "0.1.0"
+          #       source = "github.com/org/tflint-ruleset-foo"
+          #   }
+          # This is also useful for configuring rules, for example:
+          #   - type_name: rule
+          #     option_name: aws_instance_invalid_type
+          #     option_value:
+          #       enabled: true
+          # ...becomes:
+          #   rule "aws_instance_invalid_type" {
+          #     enabled = true
+          #   }
+          # If "options" is not provided, the result will be a block like this:
+          #   config {
+          #     module = true
+          #   }
+        required: false
+      flags_override:
+        type: list
+        description: |
+          The plugin has its own internal logic for appending flags to the tflint command.
+          However, if you wish to add or modify flags, configure here.
+          # A list of flag elements. Strings will be appended to the command.
+          # Dicts will be translated to bash key=vars.
+          # For example, "{'loglevel': 'debug'}", becomes "--loglevel=debug".
+        default:
+          - {'loglevel': 'debug'}
+      env:
+        type: dict
+        description: |
+          Additional env vars for duration of tflint executions,
+          which are not part of the Terraform environment variables set.
+          This is a subset.
+        required: false
 
 node_types:
   # Represents a Terraform installation.
@@ -158,11 +235,16 @@ node_types:
         description: Additional keyword args to send the the general executor process argument.
         default:
           max_sleep_time: 300
+      tflint_config:
+        type: cloudify.types.terraform.tflint
+        required: false
     interfaces:
       cloudify.interfaces.validation:
         check_status:
           implementation: tf.cloudify_tf.tasks.check_status
       cloudify.interfaces.lifecycle:
+        create:
+          implementation: tf.cloudify_tf.tasks.setup_tflint
         configure:
           implementation: tf.cloudify_tf.tasks.apply
         start:

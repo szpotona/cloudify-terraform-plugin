@@ -166,6 +166,7 @@ inputs.yaml
 local-storage/
 .cloudify/
 *.zip
+!cloudify_tf/terraform/tests/resources/resources.zip
 *.DS_STORE
 
 # Wagons

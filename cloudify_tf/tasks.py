@@ -32,6 +32,14 @@ from .terraform import Terraform
 
 @operation
 @with_terraform
+def setup_tflint(ctx, tf, **_):
+    tf.tflint.validate()
+    ctx.instance.runtime_properties['tflint_config'] = \
+        tf.tflint.export_config()
+
+
+@operation
+@with_terraform
 def apply(ctx, tf, force=False, **kwargs):
     """
     Execute `terraform apply`.
@@ -48,6 +56,8 @@ def apply(ctx, tf, force=False, **kwargs):
     else:
         old_plan = ctx.instance.runtime_properties.get('plan')
         _apply(tf, old_plan, force)
+    ctx.instance.runtime_properties['tflint_config'] = \
+        tf.tflint.export_config()
 
 
 class FailedPlanValidation(NonRecoverableError):
@@ -69,6 +79,8 @@ def _apply(tf, old_plan=None, force=False):
         if old_plan and not force:
             new_plan = tf.plan_and_show()
             compare_plan_results(new_plan, old_plan, force)
+        if not force:
+            tf.check_tflint()
         tf.apply()
         tf_state = tf.show()
         tf_output = tf.output()
@@ -201,6 +213,7 @@ def destroy(ctx, tf, **_):
                              'last_source_location',
                              'resource_config']:
         ctx.instance.runtime_properties.pop(runtime_property, None)
+    tf.tflint.uninstall_binary()
 
 
 def _destroy(tf):
@@ -365,18 +378,18 @@ def set_directory_config(ctx, **_):
         # TODO: Possibly put this in "apply" and remove the relationship in
         # the future.
 
-        ctx.logger.info('Creating link {src} {dst}'.format(
+        ctx.logger.debug('Creating link {src} {dst}'.format(
             src=deployment_terraform_dir, dst=resource_terraform_dir))
         try:
             os.symlink(deployment_terraform_dir, resource_terraform_dir)
         except OSError:
             ctx.logger.warn('Unable to link {src} {dst}'.format(
                 src=deployment_terraform_dir, dst=resource_terraform_dir))
-    ctx.logger.info("setting executable_path to {path}".format(
+    ctx.logger.debug("setting executable_path to {path}".format(
         path=exc_path))
-    ctx.logger.info("setting plugins_dir to {dir}".format(
+    ctx.logger.debug("setting plugins_dir to {dir}".format(
         dir=resource_plugins_dir))
-    ctx.logger.info("setting storage_path to {dir}".format(
+    ctx.logger.debug("setting storage_path to {dir}".format(
         dir=resource_storage_dir))
     ctx.source.instance.runtime_properties['executable_path'] = \
         exc_path

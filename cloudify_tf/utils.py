@@ -25,6 +25,7 @@ import tempfile
 import requests
 import threading
 from io import BytesIO
+from textwrap import indent
 from itertools import islice
 from contextlib import contextmanager
 
@@ -32,16 +33,20 @@ from pathlib import Path
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 from cloudify.utils import exception_to_error_cause
+from cloudify_common_sdk.hcl import (
+    convert_json_hcl,
+    extract_hcl_from_dict,
+)
 from cloudify_common_sdk.utils import (
-    get_cloudify_version,
     v1_gteq_v2,
-    get_node_instance_dir,
     get_ctx_node,
-    get_ctx_instance,
-    copy_directory,
     download_file,
+    copy_directory,
+    get_ctx_instance,
     find_rel_by_type,
-    unzip_and_set_permissions
+    get_cloudify_version,
+    get_node_instance_dir,
+    unzip_and_set_permissions,
 )
 from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
@@ -59,9 +64,6 @@ from .constants import (
     STATE,
     DRIFTS,
     IS_DRIFTED,
-    HCL_STR_TEMPLATE,
-    TERRAFORM_BACKEND,
-    HCL_DICT_TEMPLATE,
     TERRAFORM_STATE_FILE
 )
 from ._compat import text_type, StringIO, mkdir_p
@@ -297,13 +299,13 @@ def update_terraform_source_material(new_source, target=False):
         new_source_location = new_source['location']
         new_source_username = new_source.get('username')
         new_source_password = new_source.get('password')
-        ctx.logger.info('Getting shared resource: {} to {}'.format(
+        ctx.logger.debug('Getting shared resource: {} to {}'.format(
             new_source_location, node_instance_dir))
     source_tmp_path = get_shared_resource(
         new_source_location, dir=node_instance_dir,
         username=new_source_username,
         password=new_source_password)
-    ctx.logger.info('Source Temp Path {}'.format(source_tmp_path))
+    ctx.logger.debug('Source Temp Path {}'.format(source_tmp_path))
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
         source_tmp_path = _create_source_path(source_tmp_path)
@@ -440,10 +442,10 @@ def create_plugins_dir(plugins_dir=None):
     # Create plugins directory, if needed.
     if plugins_dir:
         if os.path.isdir(plugins_dir):
-            ctx.logger.info('Plugins directory already exists: {loc}'.format(
+            ctx.logger.error('Plugins directory already exists: {loc}'.format(
                 loc=plugins_dir))
         else:
-            ctx.logger.info('Creating plugins directory: {loc}'.format(
+            ctx.logger.error('Creating plugins directory: {loc}'.format(
                 loc=plugins_dir))
             mkdir_p(plugins_dir)
         # store the values in the runtime for safe keeping -> validation
@@ -454,7 +456,8 @@ def remove_dir(folder, desc=''):
     if os.path.isdir(folder):
         if len(folder.split(os.sep)) < 3:
             return
-        ctx.logger.info('Removing {desc}: {dir}'.format(desc=desc, dir=folder))
+        ctx.logger.debug(
+            'Removing {desc}: {dir}'.format(desc=desc, dir=folder))
         try:
             shutil.rmtree(folder)
         except OSError as e:
@@ -462,13 +465,13 @@ def remove_dir(folder, desc=''):
                 'Unable to safely remove temporary extraction of archive. '
                 'Error: {}'.format(str(e)))
     elif os.path.islink(folder):
-        ctx.logger.info('Unlinking: {}'.format(folder))
+        ctx.logger.debug('Unlinking: {}'.format(folder))
         os.unlink(folder)
     elif os.path.isfile(folder):
         if not remove_dir(folder):
             os.remove(folder)
     else:
-        ctx.logger.info(
+        ctx.logger.debug(
             'Directory {dir} doesn\'t exist; skipping'.format(dir=folder))
 
 
@@ -497,7 +500,7 @@ def handle_plugins(plugins, plugins_dir, installation_dir):
                 delete=False,
                 dir=installation_dir) as plugin_zip:
             plugin_zip.close()
-            ctx.logger.info('Downloading Terraform plugin: {url}'.format(
+            ctx.logger.debug('Downloading Terraform plugin: {url}'.format(
                 url=plugin_url))
             download_file(plugin_zip.name, plugin_url)
             unzip_path = os.path.join(plugins_dir, plugin_name)
@@ -618,7 +621,6 @@ def get_terraform_state_file(target_dir=None):
         if p.endswith('tfstate'):
             return os.path.join(target_dir, p)
 
-    ctx.logger.info('Getting TF statefile.')
     storage_path = get_storage_path()
     state_file_path = os.path.join(storage_path, TERRAFORM_STATE_FILE)
     encoded_source = get_terraform_source_material()
@@ -654,35 +656,33 @@ def get_terraform_state_file(target_dir=None):
                 break
 
     shutil.rmtree(extracted_source)
+    ctx.logger.debug('TF State file: {}.'.format(state_file_path))
     return state_file_path
 
 
-def translate_json_dict_to_hcl_dict(d, indent=None):
-    indent = indent or 1
-    option_string = ''
-    for option_name, option_value in d.items():
-        option_string += '  ' * indent
-        if isinstance(option_value, text_type):
-            option_string += HCL_STR_TEMPLATE.format(
-                indent='  ' * indent,
-                name=option_name,
-                value=option_value)
-        elif isinstance(option_value, dict):
-            option_value = translate_json_dict_to_hcl_dict(
-                option_value, indent)
-            option_string += HCL_DICT_TEMPLATE.format(
-                name=option_name,
-                value=option_value,
-                indent='  ' * indent)
-    return option_string
-
-
 def create_backend_string(name, options):
-    # TODO: Get a better way of setting backends.
-    option_string = translate_json_dict_to_hcl_dict(options)
-    backend_block = TERRAFORM_BACKEND.format(
-        indent='  ', name=name, value=option_string)
-    return 'terraform {{\n{}\n}}'.format(backend_block)
+    backend_block = convert_json_hcl(extract_hcl_from_dict(
+        {
+            'type_name': 'backend',
+            'option_name': name,
+            'option_value': options
+        }
+    ))
+    return 'terraform {{\n{}}}'.format(indent(backend_block, '    '))
+
+
+def create_provider_string(items):
+    provider = ""
+    for item in items:
+        provider += convert_json_hcl(extract_hcl_from_dict(
+          {
+            'type_name': 'provider',
+            'option_name': item.get('name'),
+            'option_value': item.get('options')
+          }
+        ))
+        provider += "\n"
+    return provider
 
 
 def refresh_resources_properties(state, output):

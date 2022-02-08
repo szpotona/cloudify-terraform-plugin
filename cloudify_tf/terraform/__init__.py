@@ -21,6 +21,7 @@ import tempfile
 from distutils.version import LooseVersion as parse_version
 
 from contextlib import contextmanager
+from cloudify import exceptions as cfy_exc
 from cloudify_common_sdk.utils import run_subprocess
 
 from .. import utils
@@ -38,6 +39,7 @@ class Terraform(object):
                  variables=None,
                  environment_variables=None,
                  backend=None,
+                 provider=None,
                  provider_upgrade=False,
                  additional_args=None,
                  version=None):
@@ -50,6 +52,7 @@ class Terraform(object):
         self.logger = logger
         self.additional_args = additional_args
         self._version = version
+        self._tflint = None
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -65,6 +68,7 @@ class Terraform(object):
 
         self._env = self.convert_bools_in_env(environment_variables)
         self._backend = backend
+        self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
 
@@ -97,6 +101,11 @@ class Terraform(object):
             return utils.create_backend_string(
                 self._backend.get('name'), self._backend.get('options', {}))
 
+    @property
+    def provider(self):
+        if self._provider:
+            return utils.create_provider_string(self._provider)
+
     @staticmethod
     def convert_bools_in_env(env):
         for k, v in env.items():
@@ -126,6 +135,9 @@ class Terraform(object):
 
     def put_backend(self):
         utils.dump_file(self.backend, self.root_module, 'backend.tf')
+
+    def put_provider(self):
+        utils.dump_file(self.provider, self.root_module, 'provider.tf')
 
     @contextmanager
     def runtime_file(self, command):
@@ -171,6 +183,14 @@ class Terraform(object):
     @property
     def terraform_outdated(self):
         return self.version.get('terraform_outdated')
+
+    @property
+    def tflint(self):
+        return self._tflint
+
+    @tflint.setter
+    def tflint(self, value):
+        self._tflint = value
 
     def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
@@ -311,9 +331,13 @@ class Terraform(object):
         return self.execute(command)
 
     @staticmethod
-    def from_ctx(ctx, terraform_source):
-        executable_path = utils.get_executable_path() or \
-                          utils.get_binary_location_from_rel()
+    def from_ctx(ctx, terraform_source, skip_tf=False):
+        try:
+            executable_path = utils.get_executable_path() or \
+                              utils.get_binary_location_from_rel()
+        except cfy_exc.NonRecoverableError:
+            if skip_tf:
+                executable_path = None
         plugins_dir = utils.get_plugins_dir()
         resource_config = utils.get_resource_config()
         provider_upgrade = utils.get_provider_upgrade()
@@ -332,11 +356,22 @@ class Terraform(object):
                 variables=resource_config.get('variables'),
                 environment_variables=env_variables or {},
                 backend=resource_config.get('backend'),
+                provider=resource_config.get('provider'),
                 provider_upgrade=provider_upgrade,
                 additional_args=general_executor_process,
                 version=terraform_version)
         tf.put_backend()
-        if not terraform_version:
+        tf.put_provider()
+        if not terraform_version and not skip_tf:
             ctx.instance.runtime_properties['terraform_version'] = \
                 tf.version
         return tf
+
+    def check_tflint(self):
+        if not hasattr(self, 'tflint'):
+            return
+        self.tflint.validate()
+        self.tflint.terraform_root_module = self.root_module
+        commands = []
+        with self.runtime_file(commands):
+            self.tflint.tflint(commands[-1])

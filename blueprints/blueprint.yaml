@@ -44,6 +44,10 @@ node_templates:
             bucket: terraform-integration
             key: terraform.tfstate
             region: { get_input: AWS_DEFAULT_REGION }
+        provider:
+          - name: aws
+            options:
+              region: { get_input: AWS_DEFAULT_REGION }
         environment_variables:
           AWS_ACCESS_KEY_ID: { get_input: AWS_ACCESS_KEY_ID }
           AWS_SECRET_ACCESS_KEY: { get_input: AWS_SECRET_ACCESS_KEY }

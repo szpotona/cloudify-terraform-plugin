@@ -6,12 +6,8 @@ MASKED_ENV_VARS = {
     'AWS_ACCESS_KEY_ID',
     'AWS_SECRET_ACCESS_KEY'
 }
-TERRAFORM_BACKEND = """{indent}backend "{name}" {{
-{value}
-{indent}}}
-"""
 TERRAFORM_STATE_FILE = 'terraform.tfstate'
-HCL_DICT_TEMPLATE = """{indent}{name} {{
+HCL_DICT_TEMPLATE = """{name} {{
 {indent}{value}
 {indent}{indent}}}
 """

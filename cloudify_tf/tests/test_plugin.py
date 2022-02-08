@@ -18,6 +18,7 @@ from mock import (
     patch,
     Mock)
 from tempfile import mkdtemp
+from contextlib import contextmanager
 
 from cloudify.state import current_ctx
 from cloudify.mocks import (MockContext, MockCloudifyContext,
@@ -27,6 +28,7 @@ from cloudify.mocks import (MockContext, MockCloudifyContext,
 from . import TestBase
 from ..tasks import (install,
                      apply,
+                     setup_tflint,
                      set_directory_config)
 from ..utils import RELATIONSHIP_INSTANCE
 from ..terraform import Terraform
@@ -234,3 +236,107 @@ class TestPlugin(TestBase):
         t.env = {'null': 'null'}
         self.assertEqual(t.env,
                          {'true': 'true', 'false': 'false', 'null': 'null'})
+
+    @patch('cloudify_tf.terraform.tools_base.TFTool.install_binary')
+    @patch('cloudify_tf.terraform.Terraform.version')
+    @patch('cloudify_tf.terraform.utils.get_binary_location_from_rel')
+    @patch('cloudify_tf.decorators.get_terraform_source')
+    @patch('cloudify_tf.terraform.tflint.TFLint.validate')
+    @patch('cloudify_tf.terraform.tflint.TFLint.export_config')
+    @patch('cloudify_tf.terraform.tools_base.sdk_utils.get_deployment_dir')
+    @patch('cloudify_tf.utils.get_node_instance_dir')
+    def test_setup_tflint(self,
+                          mock_node_dir,
+                          mock_dep_dir,
+                          mock_export,
+                          mock_valid,
+                          *_):
+        conf = self.get_terraform_module_conf_props(test_dir3)
+        conf.update({
+            "tflint_config": {
+                'installation_source': 'installation_source_foo',
+                'executable_path': 'executable_path_foo',
+                'config': [
+                    {
+                        'type_name': 'plugin',
+                        'option_name': 'bar',
+                        'option_value': {
+                            'baz': 'taco'
+                        }
+                    }
+                ],
+                'flags_override': ['foo'],
+                'env': {
+                    'foo': 'bar'
+                },
+
+            },
+        })
+        ctx = self.mock_ctx("test_apply_with_output", conf)
+        ctx.instance._id = 'foo'
+        current_ctx.set(ctx=ctx)
+        mock_node_dir.return_value = mkdtemp()
+        mock_dep_dir.return_value = mkdtemp()
+        setup_tflint(ctx=ctx)
+        mock_valid.assert_called_once()
+        mock_export.assert_called_once()
+
+    @patch('cloudify_tf.terraform.Terraform.init')
+    @patch('cloudify_tf.terraform.Terraform.plan_and_show')
+    @patch('cloudify_tf.terraform.Terraform.apply')
+    @patch('cloudify_tf.terraform.Terraform.show')
+    @patch('cloudify_tf.terraform.Terraform.output')
+    @patch('cloudify_tf.terraform.tflint.TFLint.validate')
+    @patch('cloudify_tf.terraform.tools_base.TFTool.execute')
+    @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
+    @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
+    @patch('cloudify_tf.terraform.tools_base.TFTool.install_binary')
+    @patch('cloudify_tf.terraform.Terraform.version')
+    @patch('cloudify_tf.terraform.utils.get_binary_location_from_rel')
+    @patch('cloudify_tf.decorators.get_terraform_source')
+    @patch('cloudify_tf.terraform.Terraform.runtime_file')
+    @patch('cloudify_tf.terraform.tools_base.sdk_utils.get_deployment_dir')
+    @patch('cloudify_tf.utils.get_node_instance_dir')
+    @patch('cloudify_tf.terraform.tflint.TFLint.tflint')
+    def test_apply_check_tflint(self,
+                                mock_tflint,
+                                mock_node_dir,
+                                mock_dep_dir,
+                                mock_runtime_file,
+                                *_):
+        conf = self.get_terraform_module_conf_props(test_dir3)
+        conf.update({
+            "tflint_config": {
+                'installation_source': 'installation_source_foo',
+                'executable_path': 'executable_path_foo',
+                'config': [
+                    {
+                        'type_name': 'plugin',
+                        'option_name': 'bar',
+                        'option_value': {
+                            'baz': 'taco'
+                        }
+                    }
+                ],
+                'flags_override': ['foo'],
+                'env': {
+                    'foo': 'bar'
+                },
+
+            },
+        })
+        ctx = self.mock_ctx("test_apply_with_output", conf)
+        ctx.instance._id = 'foo'
+        current_ctx.set(ctx=ctx)
+
+        @contextmanager
+        def runtime_file(command, *args, **kwargs):
+            command.extend(['-var-file', Mock()])
+            yield
+
+        mock_runtime_file.side_effect = runtime_file
+
+        mock_node_dir.return_value = mkdtemp()
+        mock_dep_dir.return_value = mkdtemp()
+        apply(ctx=ctx)
+        mock_tflint.assert_called()

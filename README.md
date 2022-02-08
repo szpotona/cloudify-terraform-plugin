@@ -98,3 +98,4 @@ For official blueprint examples using this Cloudify plugin, please see [Cloudify
     * Exposing Terraform resources via Terraform outputs should trigger `execute_resource` workflow on those resources.
     * This should enable a user to interact with Terraform and Cloudify from Terraform CLI.
   * Support Multiple Modules.
+

@@ -88,13 +88,12 @@ class TestUtils(TestBase):
             }
         }
         backend_hcl = """terraform {
-  backend "foo" {
-    bucket = "bucket_name"
-    key = "key_name"
-    region = "us-east-1"
+    backend "foo" {
+       bucket = bucket_name
+       key = key_name
+       region = us-east-1
 
-  }
-
+    }
 }"""
         backend_with_dict = {
             'name': 'foo',
@@ -108,22 +107,96 @@ class TestUtils(TestBase):
             }
         }
         backed_with_dict_hcl = """terraform {
-  backend "foo" {
-    hostname = "bar"
-    organization = "baz"
-    workspaces {
-      name = "taco"
+    backend "foo" {
+       hostname = bar
+       organization = baz
+       workspaces {
+          name = taco
+
+       }
+       token = %#(##
 
     }
-    token = "%#(##"
-
-  }
-
 }"""
 
-        self.assertEquals(backend_hcl, utils.create_backend_string(
-            backend['name'], backend['options']))
-        self.assertEquals(backed_with_dict_hcl,
-                          utils.create_backend_string(
-                              backend_with_dict['name'],
-                              backend_with_dict['options']))
+        backend_string = utils.create_backend_string(
+            backend['name'], backend['options'])
+        backend_dict = utils.create_backend_string(
+            backend_with_dict['name'], backend_with_dict['options'])
+
+        self.assertEquals(backend_hcl, backend_string)
+        self.assertEquals(backed_with_dict_hcl, backend_dict)
+
+    def test_provider_string(self):
+        provider = [{
+            'name': 'aws',
+            'options': {
+                'version': 'version',
+                'access_key': 'access-key',
+                'region': 'us-east-1'
+            }
+        }]
+        provider_hcl = """provider "aws" {
+   version = version
+   access_key = access-key
+   region = us-east-1
+
+}
+
+"""
+        provider_with_dict = [{
+            'name': 'azure',
+            'options': {
+                'client_id': 'client_id',
+                'tenant_id': 'tenant_id',
+                'features': {
+                    'key_vault': {}
+                },
+                'environment': 'env'
+            }
+        }]
+        provider_with_dict_hcl = """provider "azure" {
+   client_id = client_id
+   tenant_id = tenant_id
+   features {
+      key_vault {
+
+      }
+
+   }
+   environment = env
+
+}
+
+"""
+        providers_hcl = """provider "aws" {
+   version = version
+   access_key = access-key
+   region = us-east-1
+
+}
+
+provider "azure" {
+   client_id = client_id
+   tenant_id = tenant_id
+   features {
+      key_vault {
+
+      }
+
+   }
+   environment = env
+
+}
+
+"""
+
+        providers = provider + provider_with_dict
+        providers_string = utils.create_provider_string(providers)
+
+        provider_string = utils.create_provider_string(provider)
+        provider_dict = utils.create_provider_string(provider_with_dict)
+
+        self.assertEquals(provider_hcl, provider_string)
+        self.assertEquals(provider_with_dict_hcl, provider_dict)
+        self.assertEquals(providers_hcl, providers_string)
