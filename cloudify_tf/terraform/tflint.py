@@ -200,7 +200,7 @@ class TFLint(TFTool):
 
     @contextmanager
     def configfile(self):
-        with NamedTemporaryFile() as tflint_cfg:
+        with NamedTemporaryFile(dir=self.terraform_root_module) as tflint_cfg:
             tflint_cfg.write(self.config.encode('utf-8'))
             tflint_cfg.flush()
             try:

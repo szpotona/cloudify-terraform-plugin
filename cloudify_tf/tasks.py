@@ -18,7 +18,7 @@ import sys
 
 from cloudify.decorators import operation
 from cloudify import ctx as ctx_from_imports
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, RecoverableError
 from cloudify.utils import exception_to_error_cause
 from cloudify_common_sdk.utils import get_node_instance_dir, install_binary
 
@@ -86,6 +86,11 @@ def _apply(tf, old_plan=None, force=False):
         tf_output = tf.output()
     except FailedPlanValidation:
         raise
+    except FileNotFoundError as ex:
+        _, _, tb = sys.exc_info()
+        raise RecoverableError(
+            "Failed applying due to syncthing error",
+            causes=[exception_to_error_cause(ex, tb)])
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
@@ -191,7 +196,7 @@ def _state_pull(tf):
         tf_output = tf.output()
     except Exception as ex:
         _, _, tb = sys.exc_info()
-        raise NonRecoverableError(
+        raise RecoverableError(
             "Failed pulling state",
             causes=[exception_to_error_cause(ex, tb)])
     utils.refresh_resources_properties(tf_state, tf_output)
