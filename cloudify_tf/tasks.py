@@ -196,6 +196,7 @@ def _state_pull(tf):
         tf_output = tf.output()
     except Exception as ex:
         _, _, tb = sys.exc_info()
+        # TODO: make sure it's recoverable only on not syncing plugins
         raise RecoverableError(
             "Failed pulling state",
             causes=[exception_to_error_cause(ex, tb)])
