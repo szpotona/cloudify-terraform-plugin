@@ -98,7 +98,7 @@ def _plan(tf):
     try:
         tf.init()
         tf.state_pull()
-        return tf.plan_and_show()
+        return tf.plan_and_show_two_formats()
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
@@ -146,10 +146,11 @@ def plan(ctx,
     if source or source_path:
         with utils.update_terraform_source(source, source_path) as tf_src:
             tf = Terraform.from_ctx(ctx, tf_src)
-            result = _plan(tf)
+            json_result, plain_text_result = _plan(tf)
     else:
-        result = _plan(tf)
-    ctx.instance.runtime_properties['plan'] = result
+        json_result, plain_text_result = _plan(tf)
+    ctx.instance.runtime_properties['plan'] = json_result
+    ctx.instance.runtime_properties['plain_text_plan'] = plain_text_result
 
 
 @operation
