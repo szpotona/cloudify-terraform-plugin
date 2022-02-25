@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.9'
+    package_version: '0.18.10'
 
 dsl_definitions:
 
@@ -238,6 +238,10 @@ node_types:
       tflint_config:
         type: cloudify.types.terraform.tflint
         required: false
+      tfsec_config:
+        default: {}
+      terratag_config:
+        default: {}
     interfaces:
       cloudify.interfaces.validation:
         check_status:
