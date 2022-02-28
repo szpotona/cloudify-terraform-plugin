@@ -26,8 +26,10 @@ from cloudify_common_sdk.utils import run_subprocess
 
 from .. import utils
 
+from cloudify_common_sdk.cli_tool_base import CliTool
 
-class Terraform(object):
+
+class Terraform(CliTool):
     # TODO: Rework this to put the execute method in its own module.
     # TODO: After you do that, move all the SSH commands to the tasks module.
 
@@ -42,7 +44,19 @@ class Terraform(object):
                  provider=None,
                  provider_upgrade=False,
                  additional_args=None,
-                 version=None):
+                 version=None,
+                 flags_override=None,
+                 log_stdout=True):
+
+        try:
+            deployment_name = root_module.split('/')[-2]
+            node_instance_name = root_module.split('/')[-1]
+        except (IndexError, AttributeError):
+            logger.info('Invalid root module: {}'.format(root_module))
+            deployment_name = None
+            node_instance_name = None
+
+        super().__init__(logger, deployment_name, node_instance_name)
 
         backend = backend or {}
 
@@ -52,7 +66,10 @@ class Terraform(object):
         self.logger = logger
         self.additional_args = additional_args
         self._version = version
+        self._flags_override = flags_override or []
+        self._log_stdout = log_stdout
         self._tflint = None
+        self._tfsec = None
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -71,6 +88,12 @@ class Terraform(object):
         self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
+
+    @property
+    def flags(self):
+        if not self._flags:
+            self._flags = self._format_flags(self._flags_override)
+        return self._flags
 
     @property
     def env(self):
@@ -104,7 +127,8 @@ class Terraform(object):
     @property
     def provider(self):
         if self._provider:
-            return utils.create_provider_string(self._provider)
+            return utils.create_provider_string(
+                self._provider.get('providers', {}))
 
     @staticmethod
     def convert_bools_in_env(env):
@@ -119,7 +143,8 @@ class Terraform(object):
             return
         return path
 
-    def execute(self, command, return_output=True):
+    def execute(self, command, return_output=None):
+        return_output = return_output or self._log_stdout
         return run_subprocess(
             command,
             self.logger,
@@ -131,13 +156,18 @@ class Terraform(object):
     def _tf_command(self, args):
         cmd = [self.binary_path]
         cmd.extend(args)
+        # TODO: Add flags override.
+        #  But there are some commands, e.g. init that are not relevant.
         return cmd
 
     def put_backend(self):
         utils.dump_file(self.backend, self.root_module, 'backend.tf')
 
     def put_provider(self):
-        utils.dump_file(self.provider, self.root_module, 'provider.tf')
+        if self.provider:
+            utils.dump_file(self.provider,
+                            self.root_module,
+                            self._provider.get('filename', 'provider.tf'))
 
     @contextmanager
     def runtime_file(self, command):
@@ -191,6 +221,14 @@ class Terraform(object):
     @tflint.setter
     def tflint(self, value):
         self._tflint = value
+
+    @property
+    def tfsec(self):
+        return self._tfsec
+
+    @tfsec.setter
+    def tfsec(self, value):
+        self._tfsec = value
 
     def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
@@ -275,6 +313,13 @@ class Terraform(object):
         if output:
             return json.loads(output)
 
+    def show_plain_text(self, plan_file_path=None):
+        options = ['show', '-no-color']
+        if plan_file_path:
+            options.append(plan_file_path)
+        command = self._tf_command(options)
+        return self.execute(command)
+
     def plan_and_show(self):
         """
         Execute terraform plan,
@@ -283,6 +328,17 @@ class Terraform(object):
         with tempfile.NamedTemporaryFile() as plan_file:
             self.plan(plan_file.name)
             return self.show(plan_file.name)
+
+    def plan_and_show_two_formats(self):
+        """
+        Execute terraform plan,
+        then terraform show on the generated tfplan file
+        """
+        with tempfile.NamedTemporaryFile() as plan_file:
+            self.plan(plan_file.name)
+            json_result = self.show(plan_file.name)
+            plain_text_result = self.show_plain_text(plan_file.name)
+            return json_result, plain_text_result
 
     def plan_and_show_state(self):
         """
@@ -338,6 +394,8 @@ class Terraform(object):
         except cfy_exc.NonRecoverableError:
             if skip_tf:
                 executable_path = None
+            else:
+                raise
         plugins_dir = utils.get_plugins_dir()
         resource_config = utils.get_resource_config()
         provider_upgrade = utils.get_provider_upgrade()
@@ -348,6 +406,7 @@ class Terraform(object):
         env_variables = resource_config.get('environment_variables')
         terraform_version = ctx.instance.runtime_properties.get(
             'terraform_version', {})
+        flags_override = resource_config.get('flags_override')
         tf = Terraform(
                 ctx.logger,
                 executable_path,
@@ -359,7 +418,10 @@ class Terraform(object):
                 provider=resource_config.get('provider'),
                 provider_upgrade=provider_upgrade,
                 additional_args=general_executor_process,
-                version=terraform_version)
+                version=terraform_version,
+                flags_override=flags_override,
+                log_stdout=resource_config.get('log_stdout', True)
+        )
         tf.put_backend()
         tf.put_provider()
         if not terraform_version and not skip_tf:
@@ -375,3 +437,12 @@ class Terraform(object):
         commands = []
         with self.runtime_file(commands):
             self.tflint.tflint(commands[-1])
+
+    def check_tfsec(self):
+        if not hasattr(self, 'tfsec') or not self.tfsec:
+            return
+        self.tfsec.validate()
+        self.tfsec.terraform_root_module = self.root_module
+        commands = []
+        with self.runtime_file(commands):
+            self.tfsec.tfsec()

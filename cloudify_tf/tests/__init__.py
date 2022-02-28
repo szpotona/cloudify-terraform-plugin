@@ -15,8 +15,18 @@
 
 import unittest
 from uuid import uuid1
+from mock import MagicMock
 
 from cloudify.mocks import MockCloudifyContext
+
+
+class MockCloudifyContextAbortOperation(MockCloudifyContext):
+
+    abort_operation = MagicMock()
+
+    @staticmethod
+    def returns(value):
+        return value
 
 
 class TestBase(unittest.TestCase):
@@ -26,7 +36,7 @@ class TestBase(unittest.TestCase):
     def mock_ctx(self, test_name, test_properties,
                  test_runtime_properties=None):
         test_node_id = uuid1()
-        ctx = MockCloudifyContext(
+        ctx = MockCloudifyContextAbortOperation(
             node_id=test_node_id,
             properties=test_properties,
             runtime_properties=None if not test_runtime_properties

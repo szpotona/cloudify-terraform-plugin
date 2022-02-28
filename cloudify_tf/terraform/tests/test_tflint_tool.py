@@ -130,7 +130,7 @@ def tflint_params(get_tf_tools_params):  # noqa
     return args, kwargs, info, error
 
 
-@patch('cloudify_tf.terraform.tools_base.sdk_utils')
+@patch('cloudify_common_sdk.cli_tool_base.sdk_utils')
 def test_validate(sdk_utils_mock, tflint_params):
     args, kwargs, info, error = tflint_params
     download_file_mock = MagicMock()

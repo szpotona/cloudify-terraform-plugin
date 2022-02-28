@@ -18,24 +18,33 @@ import sys
 
 from cloudify.decorators import operation
 from cloudify import ctx as ctx_from_imports
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, RecoverableError
 from cloudify.utils import exception_to_error_cause
 from cloudify_common_sdk.utils import get_node_instance_dir, install_binary
 
 from . import utils
 from ._compat import mkdir_p
+from .constants import IS_DRIFTED, DRIFTS
 from .decorators import (
     with_terraform,
     skip_if_existing)
 from .terraform import Terraform
+from .terraform.tfsec import TFSecException
+from .terraform.tflint import TFLintException
 
 
 @operation
 @with_terraform
-def setup_tflint(ctx, tf, **_):
-    tf.tflint.validate()
-    ctx.instance.runtime_properties['tflint_config'] = \
-        tf.tflint.export_config()
+def setup_linters(ctx, tf, **_):
+    if tf.tflint:
+        tf.tflint.validate()
+        ctx.instance.runtime_properties['tflint_config'] = \
+            tf.tflint.export_config()
+
+    if tf.tfsec:
+        tf.tfsec.validate()
+        ctx.instance.runtime_properties['tfsec_config'] = \
+            tf.tfsec.export_config()
 
 
 @operation
@@ -56,8 +65,12 @@ def apply(ctx, tf, force=False, **kwargs):
     else:
         old_plan = ctx.instance.runtime_properties.get('plan')
         _apply(tf, old_plan, force)
-    ctx.instance.runtime_properties['tflint_config'] = \
-        tf.tflint.export_config()
+        if tf.tflint:
+            ctx.instance.runtime_properties['tflint_config'] = \
+                tf.tflint.export_config()
+        if tf.tfsec:
+            ctx.instance.runtime_properties['tfsec_config'] = \
+                tf.tfsec.export_config()
 
 
 class FailedPlanValidation(NonRecoverableError):
@@ -81,13 +94,20 @@ def _apply(tf, old_plan=None, force=False):
             compare_plan_results(new_plan, old_plan, force)
         if not force:
             tf.check_tflint()
+            tf.check_tfsec()
         tf.apply()
         tf_state = tf.show()
         tf_output = tf.output()
-    except FailedPlanValidation:
+    except (FailedPlanValidation, TFSecException, TFLintException):
         raise
+    except FileNotFoundError as ex:
+        _, _, tb = sys.exc_info()
+        raise RecoverableError(
+            "Failed applying due to syncthing error",
+            causes=[exception_to_error_cause(ex, tb)])
     except Exception as ex:
         _, _, tb = sys.exc_info()
+        tf.logger.error(str(exception_to_error_cause(ex, tb)))
         raise NonRecoverableError(
             "Failed applying",
             causes=[exception_to_error_cause(ex, tb)])
@@ -98,7 +118,7 @@ def _plan(tf):
     try:
         tf.init()
         tf.state_pull()
-        return tf.plan_and_show()
+        return tf.plan_and_show_two_formats()
     except Exception as ex:
         _, _, tb = sys.exc_info()
         raise NonRecoverableError(
@@ -146,10 +166,11 @@ def plan(ctx,
     if source or source_path:
         with utils.update_terraform_source(source, source_path) as tf_src:
             tf = Terraform.from_ctx(ctx, tf_src)
-            result = _plan(tf)
+            json_result, plain_text_result = _plan(tf)
     else:
-        result = _plan(tf)
-    ctx.instance.runtime_properties['plan'] = result
+        json_result, plain_text_result = _plan(tf)
+    ctx.instance.runtime_properties['plan'] = json_result
+    ctx.instance.runtime_properties['plain_text_plan'] = plain_text_result
 
 
 @operation
@@ -168,6 +189,21 @@ def check_status(ctx, tf, **_):
         ctx.returns(
             'The cloudify.nodes.terraform.Module node template {} '
             'has no status problems.'.format(ctx.instance.id))
+
+
+@operation
+@with_terraform
+def check_drift(ctx, tf, **_):
+    _state_pull(tf)
+    if not ctx.instance.runtime_properties.get(IS_DRIFTED, False):
+        ctx.logger.info(
+            'The cloudify.nodes.terraform.Module node instance {} '
+            'has no drifts.'.format(ctx.instance.id))
+        return
+    ctx.logger.error(
+        'The cloudify.nodes.terraform.Module node instance {} '
+        'has drifts.'.format(ctx.instance.id))
+    return ctx.instance.runtime_properties[DRIFTS]
 
 
 @operation
@@ -191,7 +227,8 @@ def _state_pull(tf):
         tf_output = tf.output()
     except Exception as ex:
         _, _, tb = sys.exc_info()
-        raise NonRecoverableError(
+        # TODO: make sure it's recoverable only on not syncing plugins
+        raise RecoverableError(
             "Failed pulling state",
             causes=[exception_to_error_cause(ex, tb)])
     utils.refresh_resources_properties(tf_state, tf_output)
@@ -213,7 +250,10 @@ def destroy(ctx, tf, **_):
                              'last_source_location',
                              'resource_config']:
         ctx.instance.runtime_properties.pop(runtime_property, None)
-    tf.tflint.uninstall_binary()
+    if tf.tflint:
+        tf.tflint.uninstall_binary()
+    if tf.tfsec:
+        tf.tfsec.uninstall_binary()
 
 
 def _destroy(tf):
