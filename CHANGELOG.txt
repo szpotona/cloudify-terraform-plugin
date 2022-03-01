@@ -1,3 +1,4 @@
+0.18.12: Soft Fail TF Sec
 0.18.11:
   - Quiet mode.
   - TFSec

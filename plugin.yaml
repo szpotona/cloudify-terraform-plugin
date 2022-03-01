@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.11'
+    package_version: '0.18.12'
 
 dsl_definitions:
 
@@ -277,6 +277,9 @@ node_types:
       tfsec_config:
         type: cloudify.types.terraform.tfsec
         required: false
+        default:
+          flags_override:
+          - soft_fail
       terratag_config:
         default: {}
     interfaces:
