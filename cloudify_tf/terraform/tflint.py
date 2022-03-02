@@ -200,16 +200,23 @@ class TFLint(TFTool):
 
     @contextmanager
     def configfile(self):
-        with NamedTemporaryFile(dir=self.terraform_root_module) as tflint_cfg:
+        with NamedTemporaryFile(
+                dir=self.terraform_root_module, delete=False) as tflint_cfg:
             tflint_cfg.write(self.config.encode('utf-8'))
             tflint_cfg.flush()
             try:
                 yield tflint_cfg.name
-            except Exception:
-                tflint_cfg.flush()
-                if path.exists(tflint_cfg.name):
+            except (Exception, FileNotFoundError) as e:
+                self.logger.error(
+                    'Not attempting to delete config file for '
+                    'troubleshooting {}'.format(tflint_cfg.name))
+                raise TFLintException('Issue running TFLint: {}'.format(
+                    str(e)))
+            if path.exists(tflint_cfg.name):
+                try:
                     remove(tflint_cfg.name)
-                raise
+                except FileNotFoundError:
+                    pass
 
     def init(self, variable_file):
         with self.configfile() as tflint_cfg:
