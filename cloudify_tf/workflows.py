@@ -110,6 +110,8 @@ def terraform_plan(ctx,
         )
     elif node_ids or (not node_ids and not node_instance_ids):
         for node in ctx.nodes:
+            if 'cloudify.nodes.terraform.Module' not in node.type_hierarchy:
+                continue
             if not node_ids or node.id in node_ids:
                 for instance in node.instances:
                     _plan_module_instance(

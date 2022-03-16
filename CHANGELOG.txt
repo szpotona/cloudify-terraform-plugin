@@ -1,3 +1,4 @@
+0.18.14: RD-4372 Make sure that terraform plan only uses module nodes.
 0.18.13: Fix issue in tflint
 0.18.12: Soft Fail TF Sec
 0.18.11:
