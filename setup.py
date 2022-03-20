@@ -46,10 +46,9 @@ setup(
     install_requires=[
         "Pathlib",
         "cloudify-common>=4.5.5",
-        "pyyaml>=4.2b1",
         "networkx==1.9.1",
         "requests>=2.7.0,<3.0",
-        "cloudify-utilities-plugins-sdk>=0.0.58",
+        "cloudify-utilities-plugins-sdk>=0.0.61",
     ],
     test_requires=[
         "cloudify-common>=4.5.5",
