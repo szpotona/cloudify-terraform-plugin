@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudify_common_sdk import hcl
+from cloudify.exceptions import NonRecoverableError
 
+from cloudify_common_sdk import hcl
 from cloudify_common_sdk.cli_tool_base import CliTool
 
 
@@ -49,3 +50,7 @@ class TFTool(CliTool):
             args[index + 1] = flags.pop(flag_index + 1)
         args.extend(flags)
         return args
+
+
+class TFToolException(NonRecoverableError):
+    pass

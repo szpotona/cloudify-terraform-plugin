@@ -19,9 +19,7 @@ from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE, STDOUT
 
-from cloudify.exceptions import NonRecoverableError
-
-from .tools_base import TFTool
+from .tools_base import TFTool, TFToolException
 
 SUPPORTED_CONFIGS = [
     'config',
@@ -47,7 +45,8 @@ class TFLint(TFTool):
                  executable_path=None,
                  config=None,
                  flags_override=None,
-                 env=None):
+                 env=None,
+                 enable=False):
 
         super().__init__(logger, deployment_name, node_instance_name)
         self._installation_source = installation_source
@@ -66,6 +65,7 @@ class TFLint(TFTool):
         self._env = env or {}
         self._tool_name = 'tflint'
         self._terraform_root_module = None
+        self._enable = enable
 
     @property
     def config_property_name(self):
@@ -278,5 +278,5 @@ def get_tflint_config(node_props, instance_props):
     return tflint_config
 
 
-class TFLintException(NonRecoverableError):
+class TFLintException(TFToolException):
     pass

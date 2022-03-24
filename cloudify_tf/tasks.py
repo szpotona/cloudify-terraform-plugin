@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import sys
 
@@ -29,22 +28,16 @@ from .decorators import (
     with_terraform,
     skip_if_existing)
 from .terraform import Terraform
-from .terraform.tfsec import TFSecException
-from .terraform.tflint import TFLintException
+from .terraform.tools_base import TFToolException
 
 
 @operation
 @with_terraform
-def setup_linters(ctx, tf, **_):
+def setup_linters(tf, **_):
     if tf.tflint:
         tf.tflint.validate()
-        ctx.instance.runtime_properties['tflint_config'] = \
-            tf.tflint.export_config()
-
     if tf.tfsec:
         tf.tfsec.validate()
-        ctx.instance.runtime_properties['tfsec_config'] = \
-            tf.tfsec.export_config()
 
 
 @operation
@@ -65,12 +58,6 @@ def apply(ctx, tf, force=False, **kwargs):
     else:
         old_plan = ctx.instance.runtime_properties.get('plan')
         _apply(tf, old_plan, force)
-        if tf.tflint:
-            ctx.instance.runtime_properties['tflint_config'] = \
-                tf.tflint.export_config()
-        if tf.tfsec:
-            ctx.instance.runtime_properties['tfsec_config'] = \
-                tf.tfsec.export_config()
 
 
 class FailedPlanValidation(NonRecoverableError):
@@ -89,6 +76,8 @@ def compare_plan_results(new_plan, old_plan, force):
 def _apply(tf, old_plan=None, force=False):
     try:
         tf.init()
+        if tf.terratag:
+            tf.run_terratag()
         if old_plan and not force:
             new_plan = tf.plan_and_show()
             compare_plan_results(new_plan, old_plan, force)
@@ -98,7 +87,7 @@ def _apply(tf, old_plan=None, force=False):
         tf.apply()
         tf_state = tf.show()
         tf_output = tf.output()
-    except (FailedPlanValidation, TFSecException, TFLintException):
+    except (FailedPlanValidation, TFToolException):
         raise
     except FileNotFoundError as ex:
         _, _, tb = sys.exc_info()
@@ -117,6 +106,8 @@ def _apply(tf, old_plan=None, force=False):
 def _plan(tf):
     try:
         tf.init()
+        if tf.terratag:
+            tf.run_terratag()
         tf.state_pull()
         return tf.plan_and_show_two_formats()
     except Exception as ex:
@@ -250,10 +241,16 @@ def destroy(ctx, tf, **_):
                              'last_source_location',
                              'resource_config']:
         ctx.instance.runtime_properties.pop(runtime_property, None)
-    if tf.tflint:
+
+    tflint_config = ctx.node.properties.get('tflint_config')
+    if tflint_config.get('enable'):
         tf.tflint.uninstall_binary()
-    if tf.tfsec:
+    tfsec_config = ctx.node.properties.get('tfsec_config', {})
+    if tfsec_config.get('enable'):
         tf.tfsec.uninstall_binary()
+    terratag_config = ctx.node.properties.get('terratag_config')
+    if terratag_config.get('enable'):
+        tf.terratag.uninstall_binary()
 
 
 def _destroy(tf):

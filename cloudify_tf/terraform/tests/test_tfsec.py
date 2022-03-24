@@ -39,7 +39,8 @@ def tfsec_params():
         'executable_path': None,
         'config': {},
         'flags_override': ['run-statistics'],
-        'env': {}
+        'env': {},
+        'enable': True
     }
     return params
 

@@ -125,7 +125,8 @@ def tflint_params(get_tf_tools_params):  # noqa
         'flags_override': [{'loglevel': 'trace'}, 'force'],
         'env': {
             'TFLINT_LOG': 'debug'
-        }
+        },
+        'enable': True
     })
     return args, kwargs, info, error
 

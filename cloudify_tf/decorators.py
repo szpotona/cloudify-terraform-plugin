@@ -1,8 +1,6 @@
 from functools import wraps
 
 from .terraform import Terraform
-from .terraform.tflint import TFLint
-from .terraform.tfsec import TFSec
 from .utils import (is_using_existing,
                     get_terraform_source)
 
@@ -57,15 +55,6 @@ def with_terraform(func):
             tf = Terraform.from_ctx(ctx,
                                     terraform_source,
                                     ctx.operation.name == CREATE_OP)
-            if ctx.operation.name != CREATE_OP:
-                if tf.terraform_outdated:
-                    ctx.logger.error(
-                        'Your terraform version {} is outdated. '
-                        'Please update.'.format(tf.terraform_version))
-            if 'tflint_config' in ctx.node.properties:
-                tf.tflint = TFLint.from_ctx(_ctx=ctx)
-            if 'tfsec_config' in ctx.node.properties:
-                tf.tfsec = TFSec.from_ctx(_ctx=ctx)
             kwargs['tf'] = tf
             return func(*args, **kwargs)
     return f

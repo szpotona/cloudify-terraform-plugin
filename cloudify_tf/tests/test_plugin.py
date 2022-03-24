@@ -246,13 +246,19 @@ class TestPlugin(TestBase):
     @patch('cloudify_tf.terraform.tflint.TFLint.export_config')
     @patch('cloudify_tf.terraform.tfsec.TFSec.validate')
     @patch('cloudify_tf.terraform.tfsec.TFSec.export_config')
+    @patch('cloudify_tf.terraform.terratag.Terratag.validate')
+    @patch('cloudify_tf.terraform.terratag.Terratag.export_config')
     @patch('cloudify_common_sdk.utils.get_deployment_dir')
     @patch('cloudify_tf.utils.get_node_instance_dir')
     def test_setup_linters(self,
                            mock_node_dir,
                            mock_dep_dir,
-                           mock_export,
-                           mock_valid,
+                           mock_terratag_export,
+                           mock_terratag_validate,
+                           mock_tfsec_export,
+                           mock_tfsec_validate,
+                           mock_tflint_export,
+                           mock_tflint_validate,
                            *_):
         conf = self.get_terraform_module_conf_props(test_dir3)
         conf.update({
@@ -272,6 +278,7 @@ class TestPlugin(TestBase):
                 'env': {
                     'foo': 'bar'
                 },
+                'enable': True
             },
             "tfsec_config": {
                 'installation_source': 'installation_source_tfsec',
@@ -279,6 +286,15 @@ class TestPlugin(TestBase):
                 'config': {},
                 'flags_override': [],
                 'env': {},
+                'enable': True
+            },
+            "terratag_config": {
+                'installation_source': 'installation_source_terratag',
+                'executable_path': 'executable_path_terratag',
+                'tags': [{'tag1: value1'}],
+                'flags_override': [],
+                'env': {},
+                'enable': True
             },
         })
         ctx = self.mock_ctx("test_apply_with_output", conf)
@@ -287,8 +303,12 @@ class TestPlugin(TestBase):
         mock_node_dir.return_value = mkdtemp()
         mock_dep_dir.return_value = mkdtemp()
         setup_linters(ctx=ctx)
-        mock_valid.assert_called_once()
-        mock_export.assert_called_once()
+        mock_terratag_validate.assert_called_once()
+        mock_terratag_export.assert_called_once()
+        mock_tfsec_validate.assert_called_once()
+        mock_tfsec_export.assert_called_once()
+        mock_tflint_validate.assert_called_once()
+        mock_tflint_export.assert_called_once()
 
     @patch('cloudify_tf.terraform.Terraform.init')
     @patch('cloudify_tf.terraform.Terraform.plan_and_show')
@@ -331,7 +351,7 @@ class TestPlugin(TestBase):
                 'env': {
                     'foo': 'bar'
                 },
-
+                'enable': True
             },
         })
         ctx = self.mock_ctx("test_apply_with_output", conf)
@@ -381,6 +401,7 @@ class TestPlugin(TestBase):
                 'config': {},
                 'flags_override': [],
                 'env': {},
+                'enable': True
             },
         })
         ctx = self.mock_ctx("test_apply_with_output", conf)

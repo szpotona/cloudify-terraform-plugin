@@ -13,13 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import re
 import json
 import tempfile
 from distutils.version import LooseVersion as parse_version
 
+from .tfsec import TFSec
+from .tflint import TFLint
+from .terratag import Terratag
 from contextlib import contextmanager
 from cloudify import exceptions as cfy_exc
 from cloudify_common_sdk.utils import run_subprocess
@@ -27,6 +29,8 @@ from cloudify_common_sdk.utils import run_subprocess
 from .. import utils
 
 from cloudify_common_sdk.cli_tool_base import CliTool
+
+CREATE_OP = 'cloudify.interfaces.lifecycle.create'
 
 
 class Terraform(CliTool):
@@ -70,6 +74,7 @@ class Terraform(CliTool):
         self._log_stdout = log_stdout
         self._tflint = None
         self._tfsec = None
+        self._terratag = None
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -229,6 +234,14 @@ class Terraform(CliTool):
     @tfsec.setter
     def tfsec(self, value):
         self._tfsec = value
+
+    @property
+    def terratag(self):
+        return self._terratag
+
+    @terratag.setter
+    def terratag(self, value):
+        self._terratag = value
 
     def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
@@ -427,6 +440,7 @@ class Terraform(CliTool):
         if not terraform_version and not skip_tf:
             ctx.instance.runtime_properties['terraform_version'] = \
                 tf.version
+        setup_config_tf(ctx, tf)
         return tf
 
     def check_tflint(self):
@@ -446,3 +460,41 @@ class Terraform(CliTool):
         commands = []
         with self.runtime_file(commands):
             self.tfsec.tfsec()
+
+    def run_terratag(self):
+        if not self.terratag:
+            return
+        self.terratag.validate()
+        self.terratag.terraform_root_module = self.root_module
+        commands = []
+        with self.runtime_file(commands):
+            self.terratag.terratag()
+
+
+def setup_config_tf(ctx, tf):
+    if ctx.operation.name != CREATE_OP:
+        if tf.terraform_outdated:
+            ctx.logger.error(
+                'Your terraform version {} is outdated. '
+                'Please update.'.format(tf.terraform_version))
+    tflint_config = ctx.node.properties.get('tflint_config')
+    if tflint_config:
+        if tflint_config.get('enable', False):
+            tf.tflint = TFLint.from_ctx(_ctx=ctx)
+            ctx.instance.runtime_properties['tflint_config'] = \
+                tf.tflint.export_config()
+
+    tfsec_config = ctx.node.properties.get('tfsec_config', {})
+    if tfsec_config:
+        if tfsec_config.get('enable', False):
+            tf.tfsec = TFSec.from_ctx(_ctx=ctx)
+            ctx.instance.runtime_properties['tfsec_config'] = \
+                tf.tfsec.export_config()
+
+    terratag_config = ctx.node.properties.get('terratag_config')
+    if terratag_config:
+        if terratag_config.get('enable', False):
+            tf.terratag = Terratag.from_ctx(_ctx=ctx)
+            ctx.instance.runtime_properties['terratag_config'] = \
+                tf.terratag.export_config()
+            tf.terratag.validate()
