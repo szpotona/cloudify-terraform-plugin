@@ -170,7 +170,6 @@ data_types:
         type: boolean
         default: false
 
-
   cloudify.types.terraform.tflint:
     properties:
       installation_source:
@@ -255,11 +254,12 @@ data_types:
          flags_override:
            type: list
            required: false
-           description: 'Optional CLI flags: dir=<path>, skipTerratagFiles=false, verbose=true, rename=false, filter=<regular expression>
-                         For example: flags_override:
-                                            - verbose: True
-                                            - rename: False  (default)
-                                            - filter: "aws_vpc"'
+           description: |
+             Optional CLI flags: dir=<path>, skipTerratagFiles=false, verbose=true, rename=false, filter=<regular expression>
+             For example: flags_override:
+              - verbose: True
+              - rename: False  (default)
+              - filter: "aws_vpc"'
          enable:
            type: boolean
            default: false
@@ -310,14 +310,10 @@ node_types:
           max_sleep_time: 300
       tflint_config:
         type: cloudify.types.terraform.tflint
-        default: {}
       tfsec_config:
         type: cloudify.types.terraform.tfsec
-        default: {}
       terratag_config:
         type: cloudify.types.terraform.terratag
-        default: {}
-
     interfaces:
       cloudify.interfaces.validation:
         check_status:
