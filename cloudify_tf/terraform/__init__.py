@@ -66,7 +66,7 @@ class Terraform(CliTool):
 
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
-        self.root_module = root_module
+        self._root_module = root_module
         self.logger = logger
         self.additional_args = additional_args
         self._version = version
@@ -93,6 +93,15 @@ class Terraform(CliTool):
         self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
+
+    @property
+    def root_module(self):
+        return self._root_module
+
+    @root_module.setter
+    def root_module(self, value):
+        self._root_module = value
+        utils.try_to_copy_old_state_file(value)
 
     @property
     def flags(self):
@@ -399,6 +408,13 @@ class Terraform(CliTool):
         command = self._tf_command(options)
         return self.execute(command)
 
+    def import_resource(self, resource_address, resource_id):
+        options = ['import', '-no-color']
+        with self.runtime_file(options):
+            options.extend([resource_address, resource_id])
+            command = self._tf_command(options)
+            return self.execute(command)
+
     @staticmethod
     def from_ctx(ctx, terraform_source, skip_tf=False):
         try:
@@ -467,6 +483,9 @@ class Terraform(CliTool):
         self.terratag.validate()
         self.terratag.terraform_root_module = self.root_module
         commands = []
+        if os.path.dirname(self.binary_path) not in os.environ['PATH']:
+            os.environ['PATH'] = '{}:{}'.format(
+                os.environ['PATH'], os.path.dirname(self.binary_path))
         with self.runtime_file(commands):
             self.terratag.terratag()
 

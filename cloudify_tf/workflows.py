@@ -19,6 +19,7 @@ HIERARCHY = 'type_hierarchy'
 TF_TYPE = 'cloudify.nodes.terraform'
 NOT_STARTED = ['uninitialized', 'deleted']
 CREATE = 'cloudify.interfaces.lifecycle.create'
+DELETE = 'cloudify.interfaces.lifecycle.delete'
 REL = 'cloudify.terraform.relationships.run_on_host'
 PRECONFIGURE = 'cloudify.interfaces.relationship_lifecycle.preconfigure'
 
@@ -78,6 +79,33 @@ def reload_resources(ctx,
     _terraform_operation(
         ctx,
         "terraform.reload",
+        node_ids,
+        node_instance_ids,
+        **kwargs).execute()
+
+
+def import_resource(ctx,
+                    node_ids,
+                    node_instance_ids,
+                    source,
+                    source_path,
+                    variables,
+                    environment_variables,
+                    resource_address,
+                    resource_id):
+    kwargs = dict(resource_address=resource_address)
+    kwargs['resource_id'] = resource_id
+    if source:
+        kwargs['source'] = source
+    if source_path:
+        kwargs['source_path'] = source_path
+    if variables:
+        kwargs['variables'] = variables
+    if environment_variables:
+        kwargs['environment_variables'] = environment_variables
+    _terraform_operation(
+        ctx,
+        "terraform.import_resource",
         node_ids,
         node_instance_ids,
         **kwargs).execute()
@@ -166,6 +194,84 @@ def _plan_module_instance(ctx, node, instance, sequence, kwargs):
     sequence.add(
         instance.execute_operation(
             'terraform.plan',
+            kwargs=kwargs,
+            allow_kwargs_override=True
+        )
+    )
+
+
+def update_terraform_binary(ctx,
+                            node_ids=None,
+                            node_instance_ids=None,
+                            installation_source=None,
+                            **kwargs):
+    if not installation_source:
+        raise NonRecoverableError(
+            'You must provided a new URL to Terraform installation source.')
+    kwargs['installation_source'] = installation_source
+    graph = ctx.graph_mode()
+    sequence = graph.sequence()
+    instance_ids = []
+    if node_ids and node_instance_ids:
+        raise NonRecoverableError(
+            'The parameters node_ids and node_instance_ids are '
+            'mutually exclusive. '
+            '{} and {} were provided.'.format(node_ids, node_instance_ids)
+        )
+    elif node_ids or (not node_ids and not node_instance_ids):
+        for node in ctx.nodes:
+            if 'cloudify.nodes.terraform' not in node.type_hierarchy:
+                continue
+            if not node_ids or node.id in node_ids:
+                for instance in node.instances:
+                    if instance.id not in instance_ids:
+                        instance_ids.append(instance.id)
+                    _update_terraform_binary(instance, sequence, kwargs)
+    elif node_instance_ids:
+        for instance in ctx.node_instances:
+            if instance.id in node_instance_ids:
+                if instance.id not in instance_ids:
+                    instance_ids.append(instance.id)
+                _update_terraform_binary(instance, sequence, kwargs)
+    for node in ctx.nodes:
+        if 'cloudify.nodes.terraform.Module' not in node.type_hierarchy:
+            continue
+        for instance in node.instances:
+            for relationship in instance.relationships:
+                if relationship.target_id in instance_ids and \
+                        relationship.relationship.type == PRECONFIGURE:
+                    _set_deployment_directory_rel(
+                        instance, sequence, kwargs)
+            runtime_properties = instance._node_instance.runtime_properties
+            runtime_properties['terraform_version'] = {}
+            ctx.update_node_instance(node_instance_id=instance.id,
+                                     runtime_properties=runtime_properties,
+                                     version=instance._node_instance.version)
+
+    return graph.execute()
+
+
+def _update_terraform_binary(instance, sequence, kwargs):
+    sequence.add(
+        instance.execute_operation(
+            DELETE,
+            kwargs=kwargs,
+            allow_kwargs_override=True
+        )
+    )
+    sequence.add(
+        instance.execute_operation(
+            CREATE,
+            kwargs=kwargs,
+            allow_kwargs_override=True
+        )
+    )
+
+
+def _set_deployment_directory_rel(instance, sequence, kwargs):
+    sequence.add(
+        instance.execute_operation(
+            PRECONFIGURE,
             kwargs=kwargs,
             allow_kwargs_override=True
         )

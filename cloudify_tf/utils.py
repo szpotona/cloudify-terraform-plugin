@@ -329,12 +329,15 @@ def get_terraform_source_material(target=False):
     data of a zip archive of just the plan files.
     """
     instance = get_ctx_instance(target=target)
-    source = instance.runtime_properties.get('terraform_source')
-    if not source:
-        resource_config = get_resource_config(target=target)
-        source = update_terraform_source_material(
-            resource_config.get('source'), target=target)
-    return source
+    terraform_source = instance.runtime_properties.get('terraform_source')
+    resource_config = get_resource_config(target=target)
+    source = resource_config.get('source')
+    resource_config.update({'source': source})
+    instance.runtime_properties['resource_config'] = resource_config
+    if not terraform_source:
+        terraform_source = update_terraform_source_material(
+            source, target=target)
+    return terraform_source
 
 
 def get_installation_source(target=False):
@@ -388,7 +391,6 @@ def get_storage_path(target=False):
             'is no longer supported.')
     instance = get_ctx_instance(target=target)
     instance.runtime_properties['storage_path'] = deployment_dir
-    instance.update()
     return deployment_dir
 
 
@@ -536,7 +538,6 @@ def get_terraform_source():
     return _yield_terraform_source(material)
 
 
-@contextmanager
 def update_terraform_source(new_source=None, new_source_path=None):
     """Replace the stored terraform resource template data"""
     if new_source:
@@ -544,7 +545,10 @@ def update_terraform_source(new_source=None, new_source_path=None):
     else:
         # If the plan operation passes NOone, then this would error.
         material = get_terraform_source_material()
-    return _yield_terraform_source(material, new_source_path)
+    module_root = get_storage_path()
+    extract_binary_tf_data(module_root, material, new_source_path)
+    ctx.logger.debug('The storage root tree:\n{}'.format(tree(module_root)))
+    return get_node_instance_dir(source_path=new_source_path)
 
 
 def _yield_terraform_source(material, source_path=None):
@@ -557,7 +561,6 @@ def _yield_terraform_source(material, source_path=None):
     extract_binary_tf_data(module_root, material, source_path)
     ctx.logger.debug('The storage root tree:\n{}'.format(tree(module_root)))
     path_to_init_dir = get_node_instance_dir(source_path=source_path)
-    try_to_copy_old_state_file(path_to_init_dir)
     try:
         yield path_to_init_dir
     except Exception as e:
@@ -566,49 +569,53 @@ def _yield_terraform_source(material, source_path=None):
         ctx.logger.error(str(cause))
         raise e
     finally:
-        ctx.logger.debug('Re-packaging Terraform files from {loc}'.format(
-            loc=module_root))
-        archived_file = _zip_archive(
-            module_root,
-            exclude_files=[get_executable_path(),
-                           get_plugins_dir()])
-        # Convert the zip archive into base64 for storage in runtime
-        # properties.
-        base64_rep = _file_to_base64(archived_file)
-        os.remove(archived_file)
-
-        ctx.logger.warn('The after base64_rep size is {size}.'.format(
-            size=len(base64_rep)))
-
         if v1_gteq_v2(get_cloudify_version(), "6.0.0"):
             ctx.logger.debug('Not storing zip in runtime properties in '
                              'Cloudify 6.0.0 and greater')
-        elif len(base64_rep) > get_ctx_node().properties.get(
-                'max_runtime_property_size', 100000):
-            raise Exception('Not storing terraform_source, '
-                            'because its size is {}'.format(len(base64_rep)))
         else:
-            ctx.logger.info('Storing zip "terraform source" in '
-                            'runtime properties.')
-            ctx.instance.runtime_properties['terraform_source'] = \
-                base64_rep
-        ctx.instance.runtime_properties['resource_config'] = \
-            get_resource_config()
-        if source_path:
-            ctx.instance.runtime_properties['resource_config'][
-                'source_path'] = source_path
-        ctx.instance.runtime_properties['previous_tf_state_file'] = \
-            get_terraform_state_file(path_to_init_dir)
+            store_binary_material(module_root)
+    ctx.instance.runtime_properties['previous_tf_state_file'] = \
+        get_terraform_state_file(path_to_init_dir)
+
+
+def store_binary_material(module_root, ):
+    ctx.logger.debug('Re-packaging Terraform files from {loc}'.format(
+        loc=module_root))
+    archived_file = _zip_archive(
+        module_root,
+        exclude_files=[get_executable_path(),
+                       get_plugins_dir()])
+    # Convert the zip archive into base64 for storage in runtime
+    # properties.
+    base64_rep = _file_to_base64(archived_file)
+    os.remove(archived_file)
+
+    ctx.logger.warn('The after base64_rep size is {size}.'.format(
+        size=len(base64_rep)))
+
+    if len(base64_rep) > get_ctx_node().properties.get(
+            'max_runtime_property_size', 100000):
+        raise Exception('Not storing terraform_source, '
+                        'because its size is {}'.format(len(base64_rep)))
+    else:
+        ctx.logger.info('Storing zip "terraform source" in '
+                        'runtime properties.')
+        ctx.instance.runtime_properties['terraform_source'] = \
+            base64_rep
 
 
 def try_to_copy_old_state_file(target_dir):
-    for p in os.listdir(target_dir):
-        if p.endswith('tfstate'):
-            return
     p = ctx.instance.runtime_properties.get(
         'previous_tf_state_file')
+
     if p and os.path.exists(p) and os.stat(p).st_size:
-        shutil.copy2(p, target_dir)
+        target_file = os.path.join(target_dir, os.path.basename(p))
+        try:
+            os.symlink(p, target_file)
+        except OSError:
+            ctx.logger.warn('Unable to link {src} {dst}'.format(
+                src=p, dst=target_file))
+    ctx.instance.runtime_properties['previous_tf_state_file'] = p
 
 
 def get_terraform_state_file(target_dir=None):

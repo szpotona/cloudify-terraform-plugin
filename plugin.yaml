@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.15'
+    package_version: '0.18.16'
 
 dsl_definitions:
 
@@ -237,32 +237,32 @@ data_types:
         default: false
 
   cloudify.types.terraform.terratag:
-       properties:
-         installation_source:
-           type: string
-           description: The URL to download the terratag binary from.
-           default: 'https://github.com/env0/terratag/releases/download/v0.1.35/terratag_0.1.35_linux_amd64.tar.gz'
-           required: false
-         executable_path:
-           type: string
-           description: If the binary is located on the file system, this is the path on the file system.
-           required: false
-         tags:
-           type: dict
-           description: # For example: {'id': 'abc', 'user_name': 'my_name'}
-           required: false
-         flags_override:
-           type: list
-           required: false
-           description: |
-             Optional CLI flags: dir=<path>, skipTerratagFiles=false, verbose=true, rename=false, filter=<regular expression>
-             For example: flags_override:
-              - verbose: True
-              - rename: False  (default)
-              - filter: "aws_vpc"'
-         enable:
-           type: boolean
-           default: false
+    properties:
+      installation_source:
+        type: string
+        description: The URL to download the terratag binary from.
+        default: 'https://github.com/env0/terratag/releases/download/v0.1.35/terratag_0.1.35_linux_amd64.tar.gz'
+        required: false
+      executable_path:
+        type: string
+        description: If the binary is located on the file system, this is the path on the file system.
+        required: false
+      tags:
+        type: dict
+        description: # For example: {'id': 'abc', 'user_name': 'my_name'}
+        required: false
+      flags_override:
+        type: list
+        required: false
+        description: |
+         Optional CLI flags: dir=<path>, skipTerratagFiles=false, verbose=true, rename=false, filter=<regular expression>
+         For example: flags_override:
+          - verbose: True
+          - rename: False  (default)
+          - filter: "aws_vpc"'
+      enable:
+        type: boolean
+        default: false
 
 node_types:
   # Represents a Terraform installation.
@@ -377,6 +377,39 @@ node_types:
         refresh:
           # Refreshes Terraform's state.
           implementation: tf.cloudify_tf.tasks.state_pull
+        import_resource:
+          # import terraform resource given address in template and id from provider.
+          implementation: tf.cloudify_tf.tasks.import_resource
+          inputs:
+            source:
+              description: >
+                URL or path to a ZIP/tar.gz file or a Git repository to obtain
+                new module source from. If omitted, then the module is reloaded
+                from its last location.
+              type: string
+              default: { get_attribute: [ SELF, last_source_location ] }
+            source_path:
+              type: string
+              description: The path within the source property, where the terraform files may be found.
+              default: { get_property: [ SELF, resource_config, source_path ] }
+            variables:
+              type: dict
+              description: Variables override.
+              default: {}
+            environment_variables:
+              type: dict
+              description: Environment variables override.
+              default: {}
+            resource_address:
+              description: >
+                the address to import the resource to inside terraform module.
+              type: string
+              default: ''
+            resource_id:
+              description: >
+                resource-specific ID to identify that resource being imported.
+              type: string
+              default: ''
 
 relationships:
 
@@ -431,3 +464,24 @@ workflows:
         type: boolean
         description: Force apply without matching previous plan.
         default: false
+
+  update_terraform_binary:
+    mapping: tf.cloudify_tf.workflows.update_terraform_binary
+    parameters:
+      <<: *terraform_workflow_params
+      installation_source:
+        type: string
+        description: The URL to downlowd the new binary from.
+
+  import_terraform_resource:
+    mapping: tf.cloudify_tf.workflows.import_resource
+    parameters:
+      <<: *terraform_plan_params
+      resource_address:
+        description: >
+          the address to import the resource to inside terraform module.
+        type: string
+      resource_id:
+        description: >
+          resource-specific ID to identify that resource being imported.
+        type: string

@@ -30,6 +30,7 @@ from ..tasks import (apply,
                      install,
                      check_drift,
                      setup_linters,
+                     import_resource,
                      set_directory_config)
 from ..utils import RELATIONSHIP_INSTANCE
 from ..terraform import Terraform
@@ -483,3 +484,59 @@ class TestPlugin(TestBase):
                 'The cloudify.nodes.terraform.Module node instance {} '
                 'has no drifts.'.format(ctx.instance.id)
             )
+
+    @patch('cloudify_tf.utils._unzip_archive')
+    @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
+    @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
+    @patch('cloudify_tf.utils.get_node_instance_dir',
+           return_value=test_dir3)
+    @patch('cloudify_tf.terraform.Terraform.terraform_outdated',
+           return_value=False)
+    def test_import_resource(self, *_):
+        conf = self.get_terraform_module_conf_props(test_dir3)
+        ctx = self.mock_ctx("test_import_resource", conf)
+        current_ctx.set(ctx=ctx)
+        kwargs = {
+            'ctx': ctx,
+            'resource_address': 'aws_instance.example_vm',
+            'resource_id': 'i-06e504391884deb3c'
+        }
+        mock_plan_and_show = {
+            "format_version": "0.1",
+            "terraform_version": "0.13.4",
+            "variables": {},
+            "planned_values": {},
+            "resource_changes": [],
+            "prior_state": {},
+            "configuration": {}
+        }
+
+        tf_pulled_resources = {
+            'resources': [{
+                'name': 'example_vm',
+                'value': {
+                    "mode": "managed",
+                    "type": "aws_instance",
+                    "name": "example_vm",
+                }
+            }
+            ]
+        }
+        tf_output = {}
+        mock_tf_import = Mock()
+        mock_tf_import.init.return_value = 'terraform initialized folder'
+        mock_tf_import.plan.return_value = 'terraform plan'
+        mock_tf_import.import_resource.return_value = 'Import successful!'
+        mock_tf_import.state_pull.return_value = tf_pulled_resources
+        mock_tf_import.output.return_value = tf_output
+        mock_tf_import.plan_and_show.return_value = mock_plan_and_show
+
+        with patch('cloudify_tf.terraform.Terraform.from_ctx',
+                   return_value=mock_tf_import):
+            import_resource(**kwargs)
+            self.assertTrue(mock_tf_import.import_resource.called)
+            self.assertEqual(
+                ctx.instance.runtime_properties['resources'],
+                {'example_vm': tf_pulled_resources.get('resources')[0]})
+            self.assertEqual(ctx.instance.runtime_properties['outputs'],
+                             tf_output)
