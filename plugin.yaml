@@ -81,6 +81,18 @@ data_types:
         description: "A list of providers with { name: string, options: dict } structure"
         required: False
 
+  cloudify.types.terraform.RequiredProviders:
+    properties:
+      filename:
+        type: string
+        description: Some name.
+        required: False
+        default: versions.tf.json
+      required_providers:
+        type: dict
+        description: "A dict of required providers"
+        required: False
+
   cloudify.types.terraform.SourceSpecification:
     properties:
       location:
@@ -123,6 +135,12 @@ data_types:
           If a provider is not defined in source,
           and you want to use a specific provider, define that here in a list.
         default: {}
+      required_providers:
+        type: cloudify.types.terraform.RequiredProviders
+        description: >
+          If required providers are not defined in source,
+          and you want to use a specific provider, define that here in a list.
+        default: { }
       variables:
         description: A dictionary of variables.
         required: false

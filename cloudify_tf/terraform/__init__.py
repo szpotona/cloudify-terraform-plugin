@@ -46,6 +46,7 @@ class Terraform(CliTool):
                  environment_variables=None,
                  backend=None,
                  provider=None,
+                 required_providers=None,
                  provider_upgrade=False,
                  additional_args=None,
                  version=None,
@@ -63,6 +64,8 @@ class Terraform(CliTool):
         super().__init__(logger, deployment_name, node_instance_name)
 
         backend = backend or {}
+        provider = provider or {}
+        required_providers = required_providers or {}
 
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
@@ -90,6 +93,7 @@ class Terraform(CliTool):
 
         self._env = self.convert_bools_in_env(environment_variables)
         self._backend = backend
+        self._required_providers = required_providers
         self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
@@ -139,6 +143,12 @@ class Terraform(CliTool):
                 self._backend.get('name'), self._backend.get('options', {}))
 
     @property
+    def required_providers(self):
+        if self._required_providers:
+            return utils.create_required_providers_string(
+                self._required_providers.get('required_providers'))
+
+    @property
     def provider(self):
         if self._provider:
             return utils.create_provider_string(
@@ -170,12 +180,20 @@ class Terraform(CliTool):
     def _tf_command(self, args):
         cmd = [self.binary_path]
         cmd.extend(args)
+
         # TODO: Add flags override.
         #  But there are some commands, e.g. init that are not relevant.
         return cmd
 
     def put_backend(self):
         utils.dump_file(self.backend, self.root_module, 'backend.tf')
+
+    def put_required_providers(self):
+        utils.dump_file(self.required_providers,
+                        self.root_module,
+                        self._required_providers.get(
+                            'filename',
+                            'versions.tf.json'))
 
     def put_provider(self):
         if self.provider:
@@ -445,6 +463,7 @@ class Terraform(CliTool):
                 environment_variables=env_variables or {},
                 backend=resource_config.get('backend'),
                 provider=resource_config.get('provider'),
+                required_providers=resource_config.get('required_providers'),
                 provider_upgrade=provider_upgrade,
                 additional_args=general_executor_process,
                 version=terraform_version,
@@ -452,6 +471,7 @@ class Terraform(CliTool):
                 log_stdout=resource_config.get('log_stdout', True)
         )
         tf.put_backend()
+        tf.put_required_providers()
         tf.put_provider()
         if not terraform_version and not skip_tf:
             ctx.instance.runtime_properties['terraform_version'] = \

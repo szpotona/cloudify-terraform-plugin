@@ -678,6 +678,15 @@ def create_backend_string(name, options):
     return 'terraform {{\n{}}}'.format(indent(backend_block, '    '))
 
 
+def create_required_providers_string(items):
+    required_providers = {
+        "terraform": {
+            "required_providers": items
+        }
+    }
+    return json.dumps(required_providers, indent=4)
+
+
 def create_provider_string(items):
     provider = ""
     for item in items:
