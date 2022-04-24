@@ -50,7 +50,8 @@ class Terraform(CliTool):
                  additional_args=None,
                  version=None,
                  flags_override=None,
-                 log_stdout=True):
+                 log_stdout=True,
+                 tfvars=None):
 
         try:
             deployment_name = root_module.split('/')[-2]
@@ -93,6 +94,7 @@ class Terraform(CliTool):
         self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
+        self._tfvars = tfvars
 
     @property
     def root_module(self):
@@ -185,15 +187,19 @@ class Terraform(CliTool):
 
     @contextmanager
     def runtime_file(self, command):
-        with tempfile.NamedTemporaryFile(suffix=".json",
-                                         delete=False,
-                                         mode="w",
-                                         dir=self.root_module) as f:
-            json.dump(self.variables, f)
-            f.close()
-            command.extend(['-var-file', f.name])
+        if self._tfvars:
+            command.extend(['-var-file={}'.format(self.tfvars)])
             yield
-        os.remove(f.name)
+        else:
+            with tempfile.NamedTemporaryFile(suffix=".json",
+                                             delete=False,
+                                             mode="w",
+                                             dir=self.root_module) as f:
+                json.dump(self.variables, f)
+                f.close()
+                command.extend(['-var-file', f.name])
+                yield
+            os.remove(f.name)
 
     @property
     def version(self):
@@ -251,6 +257,15 @@ class Terraform(CliTool):
     @terratag.setter
     def terratag(self, value):
         self._terratag = value
+
+    @property
+    def tfvars(self):
+        # os.path.join(self.root_module, self._tfvars)
+        return self._tfvars
+
+    @tfvars.setter
+    def tfvars(self, value):
+        self._tfvars = value
 
     def init(self, command_line_args=None):
         cmdline = ['init', '-no-color', '-input=false']
@@ -416,7 +431,7 @@ class Terraform(CliTool):
             return self.execute(command)
 
     @staticmethod
-    def from_ctx(ctx, terraform_source, skip_tf=False):
+    def from_ctx(ctx, terraform_source, skip_tf=False, **kwargs):
         try:
             executable_path = utils.get_executable_path() or \
                               utils.get_binary_location_from_rel()
@@ -436,20 +451,30 @@ class Terraform(CliTool):
         terraform_version = ctx.instance.runtime_properties.get(
             'terraform_version', {})
         flags_override = resource_config.get('flags_override')
+        tfvars_name_file = resource_config.get('tfvars', None)
+
+        key_word_args = {
+            'variables': resource_config.get('variables'),
+            'environment_variables': env_variables or {},
+            'backend': resource_config.get('backend'),
+            'provider': resource_config.get('provider'),
+            'provider_upgrade': provider_upgrade,
+            'additional_args': general_executor_process,
+            'version': terraform_version,
+            'flags_override': flags_override,
+            'log_stdout': resource_config.get('log_stdout', True),
+            'tfvars': tfvars_name_file,
+        }
+        for k in key_word_args.keys():
+            if k in kwargs:
+                key_word_args[k] = kwargs[k]
+
         tf = Terraform(
                 ctx.logger,
                 executable_path,
                 plugins_dir,
                 terraform_source,
-                variables=resource_config.get('variables'),
-                environment_variables=env_variables or {},
-                backend=resource_config.get('backend'),
-                provider=resource_config.get('provider'),
-                provider_upgrade=provider_upgrade,
-                additional_args=general_executor_process,
-                version=terraform_version,
-                flags_override=flags_override,
-                log_stdout=resource_config.get('log_stdout', True)
+                **key_word_args
         )
         tf.put_backend()
         tf.put_provider()

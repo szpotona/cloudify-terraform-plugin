@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.16'
+    package_version: '0.18.17'
 
 dsl_definitions:
 
@@ -143,6 +143,11 @@ data_types:
         type: boolean
         default: true
         description: Set to false, if you wish to suppress stdout logging for apply and plan commands.
+      tfvars:
+        type: string
+        description: file Name .tfvars
+        required: false
+
 
   cloudify.types.terraform.tfsec:
     properties:
