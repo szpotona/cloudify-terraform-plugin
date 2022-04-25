@@ -485,6 +485,37 @@ class TestPlugin(TestBase):
                 'has no drifts.'.format(ctx.instance.id)
             )
 
+    @patch('cloudify_tf.terraform.Terraform.set_plugins_dir')
+    @patch('cloudify_tf.terraform.Terraform.version')
+    @patch('cloudify_tf.terraform.utils.get_executable_path')
+    @patch('cloudify_tf.terraform.utils.get_plugins_dir')
+    @patch('cloudify_tf.terraform.utils.get_provider_upgrade')
+    @patch('cloudify_tf.terraform.utils.get_executable_path')
+    @patch('cloudify_tf.terraform.utils.get_executable_path')
+    @patch('cloudify_tf.terraform.utils.get_executable_path')
+    def test_apply_tf_vars(self, *_):
+        conf = {
+            "resource_config": {
+                "tfvars": 'val.tfvars'
+            }
+        }
+        tfvars_mock = 'val.tfvars'
+        key_word_args = {
+            'tfvars': tfvars_mock,
+        }
+        conf['resource_config']['tfvars'] = tfvars_mock
+        ctx = self.mock_ctx("test_tfvars", conf)
+        tf = Terraform.from_ctx(ctx, 'foo', **key_word_args)
+
+        def fake_func():
+            command = ['start']
+            with tf.runtime_file(command):
+                return command
+
+        result = fake_func()
+        expected = '-var-file={}'.format(tfvars_mock)
+        self.assertTrue(expected in result)
+
     @patch('cloudify_tf.utils._unzip_archive')
     @patch('cloudify_tf.utils.get_terraform_state_file', return_value=False)
     @patch('cloudify_tf.utils.get_cloudify_version', return_value="6.1.0")
