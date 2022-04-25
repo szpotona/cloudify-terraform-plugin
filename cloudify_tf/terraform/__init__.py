@@ -466,7 +466,7 @@ class Terraform(CliTool):
             'tfvars': tfvars_name_file,
         }
         for k in key_word_args.keys():
-            if k in kwargs:
+            if k in kwargs and kwargs[k]:
                 key_word_args[k] = kwargs[k]
 
         tf = Terraform(
