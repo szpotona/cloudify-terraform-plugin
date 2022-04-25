@@ -476,6 +476,7 @@ class Terraform(CliTool):
             'environment_variables': env_variables or {},
             'backend': resource_config.get('backend'),
             'provider': resource_config.get('provider'),
+            'required_providers': resource_config.get('required_providers'),
             'provider_upgrade': provider_upgrade,
             'additional_args': general_executor_process,
             'version': terraform_version,
