@@ -463,6 +463,8 @@ class Terraform(CliTool):
         provider_upgrade = utils.get_provider_upgrade()
         general_executor_process = ctx.node.properties.get(
             'general_executor_process')
+        if isinstance(terraform_source, dict):
+            terraform_source = terraform_source.get('location')
         if not os.path.exists(plugins_dir) and utils.is_using_existing():
             utils.mkdir_p(plugins_dir)
         env_variables = resource_config.get('environment_variables')
@@ -487,7 +489,6 @@ class Terraform(CliTool):
         for k in key_word_args.keys():
             if k in kwargs and kwargs[k]:
                 key_word_args[k] = kwargs[k]
-
         tf = Terraform(
                 ctx.logger,
                 executable_path,
