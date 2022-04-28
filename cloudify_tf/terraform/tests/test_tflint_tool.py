@@ -23,7 +23,6 @@ from mock import MagicMock, patch
 # from cloudify.mocks import MockCloudifyContext
 
 from .. import tflint
-from .test_tools_base import get_tf_tools_params  # noqa
 
 TFLINT_URL = 'https://github.com/terraform-linters/tflint/releases/download/' \
              'latest/tflint_amd64.zip'
@@ -67,6 +66,21 @@ mQINBFzpPOMBEADOat4P4z0jvXaYdhfy+UcGivb2XYgGSPQycTgeW1YuGLYdfrwz
 AkqlyThflWOZf8GFrOw+UAR1OASzR00EDxC9BqWtW5YZYfwFUQnmhxU+9Cd92e6i
 ...
 KEY"""
+
+
+@fixture
+def get_tf_tools_params():
+    info_logger = MagicMock()
+    error_logger = MagicMock()
+    logger_mock = MagicMock()
+    logger_mock.info = info_logger
+    logger_mock.error = error_logger
+    params = {
+        'logger': logger_mock,
+        'deployment_name': 'deployment_name_test',
+        'node_instance_name': 'node_instance_name_test'
+    }
+    return logger_mock, params, info_logger, error_logger
 
 
 @fixture

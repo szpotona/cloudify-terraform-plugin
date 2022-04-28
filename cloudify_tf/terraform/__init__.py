@@ -488,7 +488,16 @@ class Terraform(CliTool):
         }
         for k in key_word_args.keys():
             if k in kwargs and kwargs[k]:
-                key_word_args[k] = kwargs[k]
+                if isinstance(kwargs[k], dict):
+                    resolved_kwargs = utils.resolve_dict_intrinsic_vals(
+                        kwargs[k], ctx.deployment.id)
+                    if isinstance(key_word_args[k], dict):
+                        key_word_args[k].update(resolved_kwargs)
+                    else:
+                        key_word_args[k] = kwargs[k]
+                else:
+                    key_word_args[k] = kwargs[k]
+
         tf = Terraform(
                 ctx.logger,
                 executable_path,

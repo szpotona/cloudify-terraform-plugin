@@ -47,6 +47,7 @@ from cloudify_common_sdk.utils import (
     get_cloudify_version,
     get_node_instance_dir,
     unzip_and_set_permissions,
+    resolve_intrinsic_functions
 )
 from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
@@ -897,3 +898,15 @@ def tree(dir_path, level=-1, limit_to_directories=False, length_limit=1000000):
         '\n{} directories'.format(directories) + (
             ', {} files'.format(files) if files else ''))
     return '\n'.join(tree_lines)
+
+
+def resolve_dict_intrinsic_vals(dict_val, dep_id):
+    # could be intrinsic function directly
+    resolved_dict = resolve_intrinsic_functions(dict_val, dep_id)
+    if isinstance(resolved_dict, dict):
+        # could be dict of dicts with intrinsic functions
+        resolved_dict = {}
+        for k, v in dict_val.items():
+            resolved_val = resolve_intrinsic_functions(v, dep_id)
+            resolved_dict[k] = resolved_val
+    return resolved_dict

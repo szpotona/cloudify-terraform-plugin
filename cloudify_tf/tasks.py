@@ -125,14 +125,10 @@ def _handle_new_vars(runtime_props,
                      variables=None,
                      environment_variables=None,
                      update=False):
-
-    if variables:
-        tf.variables = variables
-        if update:
+    if update:
+        if variables:
             runtime_props['resource_config']['variables'] = tf.variables
-    if environment_variables:
-        tf.env = environment_variables
-        if update:
+        if environment_variables:
             runtime_props['resource_config']['environment_variables'] = tf.env
 
 
