@@ -68,12 +68,14 @@ class Terraform(CliTool):
         provider = provider or {}
         required_providers = required_providers or {}
 
+        self.tool_name = 'Terraform'
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
         self._root_module = root_module
         self.logger = logger
         self.additional_args = additional_args
         self._version = version
+        self._flags = None
         self._flags_override = flags_override or []
         self._log_stdout = log_stdout
         self._tflint = None
@@ -169,6 +171,44 @@ class Terraform(CliTool):
             return
         return path
 
+    def get_valid_override_flags(self, command_args):
+        def get_cleaned_flags(help_result):
+            cleaned_flags = []
+            # this will get us the options
+            options = help_result[help_result.find('Options:'):]
+            # clear any default value in flag
+            for flag in re.findall(r"\s+-([^ ]+) .*", options):
+                cleaned_flags.append("--{0}".format(flag.partition('=')[0]))
+            return cleaned_flags
+
+        cleaned_flags = []
+        subcommand = command_args[0]
+        help_result = self.execute([self.binary_path, subcommand, '-help'])
+        cleaned_flags = get_cleaned_flags(help_result)
+        # check if it has nested_help options
+        nested_help_text = 'For more information on those options, run:'
+        # get the help command by adding len of nested_help_text
+        help_text_index = help_result.find(nested_help_text)
+        if not cleaned_flags and help_text_index > -1:
+            nested_help = help_result[help_text_index+43:]
+            # replace terraform with correct binary_path
+            help_command = [self.binary_path]
+            help_command.extend(nested_help.split()[1:])
+            help_result = self.execute(help_command)
+            nested_flags = get_cleaned_flags(help_result)
+            for flag in nested_flags:
+                if flag not in cleaned_flags:
+                    cleaned_flags.append(flag)
+        # remove extra - from the formatted_flags and pick the flag
+        # that is part of the supported flags by the command
+        final_flags = [flag[1:] for flag in self.flags
+                       if flag.partition('=')[0] in cleaned_flags]
+        for flag in command_args[1:]:
+            if flag not in final_flags:
+                final_flags.append(flag)
+        final_flags.insert(0, subcommand)
+        return final_flags
+
     def execute(self, command, return_output=None):
         return_output = return_output or self._log_stdout
         return run_subprocess(
@@ -181,10 +221,11 @@ class Terraform(CliTool):
 
     def _tf_command(self, args):
         cmd = [self.binary_path]
-        cmd.extend(args)
-
-        # TODO: Add flags override.
-        #  But there are some commands, e.g. init that are not relevant.
+        if self.flags:
+            flags = self.get_valid_override_flags(args)
+            cmd.extend(flags)
+        else:
+            cmd.extend(args)
         return cmd
 
     def put_backend(self):
