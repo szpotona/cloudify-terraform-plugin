@@ -308,6 +308,12 @@ def update_terraform_source_material(new_source, target=False):
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
         source_tmp_path = _create_source_path(source_tmp_path)
+    else:
+        # move tmp files to correct directory
+        copy_directory(source_tmp_path, node_instance_dir)
+        if os.path.abspath(os.path.dirname(source_tmp_path)) != \
+                os.path.abspath(get_node_instance_dir(target)):
+            remove_dir(source_tmp_path)
     ctx.logger.debug('Source Temp Path {}'.format(source_tmp_path))
     # By getting here we will have extracted source
     # Zip the file to store in runtime
@@ -577,7 +583,8 @@ def _yield_terraform_source(material, source_path=None):
             if os.path.isdir(location):
                 path_to_init_dir = source
     if not path_to_init_dir:
-        extract_binary_tf_data(module_root, material, source_path)
+        if material:
+            extract_binary_tf_data(module_root, material, source_path)
         ctx.logger.debug(
             'The storage root tree:\n{}'.format(tree(module_root)))
         path_to_init_dir = get_node_instance_dir(source_path=source_path)
