@@ -2,6 +2,7 @@
  - Add flags override implementation.
  - Some advance handling of intrinsic function if passed via kwargs to operations.
  - RD-4607 Improve File System Modules Support.
+ - RD-4726-create-a-workflow-for-tfsec
 0.18.17: RD-4653-support-tf-vars
 0.18.16:
  - RD-4603 Update Terraform Binary Workflow

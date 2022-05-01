@@ -910,3 +910,10 @@ def resolve_dict_intrinsic_vals(dict_val, dep_id):
             resolved_val = resolve_intrinsic_functions(v, dep_id)
             resolved_dict[k] = resolved_val
     return resolved_dict
+
+
+def first_merge_in_second(new, original):
+    if new and original:
+        for key, value in new.items():
+            original[key] = value
+    return original

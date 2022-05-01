@@ -366,6 +366,11 @@ node_types:
               default: { get_property: [SELF, resource_config, source_path ] }
             force:
               default: false
+        tfsec:
+          implementation: tf.cloudify_tf.tasks.tfsec
+          inputs:
+            tfsec_config:
+              default: { get_property: [SELF, tfsec_config ] }
         reload:
           # Reloads the Terraform template. By default, the template will be
           # read from the last location it was loaded from.

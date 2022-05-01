@@ -586,27 +586,33 @@ class Terraform(CliTool):
             self.terratag.terratag()
 
 
-def setup_config_tf(ctx, tf):
+def setup_config_tf(ctx,
+                    tf,
+                    tfsec_config=None,
+                    tflint_config=None,
+                    terratag_config=None):
     if ctx.operation.name != CREATE_OP:
         if tf.terraform_outdated:
             ctx.logger.error(
                 'Your terraform version {} is outdated. '
                 'Please update.'.format(tf.terraform_version))
-    tflint_config = ctx.node.properties.get('tflint_config')
-    if tflint_config:
-        if tflint_config.get('enable', False):
-            tf.tflint = TFLint.from_ctx(_ctx=ctx)
-            ctx.instance.runtime_properties['tflint_config'] = \
-                tf.tflint.export_config()
 
-    tfsec_config = ctx.node.properties.get('tfsec_config', {})
-    if tfsec_config:
-        if tfsec_config.get('enable', False):
-            tf.tfsec = TFSec.from_ctx(_ctx=ctx)
-            ctx.instance.runtime_properties['tfsec_config'] = \
-                tf.tfsec.export_config()
+    tflint_config = tflint_config or ctx.node.properties.get(
+        'tflint_config', {})
+    if tflint_config.get('enable', False):
+        tf.tflint = TFLint.from_ctx(_ctx=ctx)
+        ctx.instance.runtime_properties['tflint_config'] = \
+            tf.tflint.export_config()
 
-    terratag_config = ctx.node.properties.get('terratag_config')
+    tfsec_config = tfsec_config or ctx.node.properties.get(
+        'tfsec_config', {})
+    if tfsec_config.get('enable', False):
+        tf.tfsec = TFSec.from_ctx(_ctx=ctx, tfsec_config=tfsec_config)
+        ctx.instance.runtime_properties['tfsec_config'] = \
+            tf.tfsec.export_config()
+
+    terratag_config = terratag_config or ctx.node.properties.get(
+        'terratag_config')
     if terratag_config:
         if terratag_config.get('enable', False):
             tf.terratag = Terratag.from_ctx(_ctx=ctx)

@@ -19,7 +19,9 @@ from cloudify.decorators import operation
 from cloudify import ctx as ctx_from_imports
 from cloudify.exceptions import NonRecoverableError, RecoverableError
 from cloudify.utils import exception_to_error_cause
-from cloudify_common_sdk.utils import get_node_instance_dir, install_binary
+from cloudify_common_sdk.utils import (get_node_instance_dir,
+                                       install_binary,
+                                       update_dict_values)
 
 from . import utils
 from ._compat import mkdir_p
@@ -28,6 +30,20 @@ from .decorators import (
     with_terraform,
     skip_if_existing)
 from .terraform.tools_base import TFToolException
+from .terraform.tfsec import TFSec
+
+
+@operation
+@with_terraform
+def tfsec(ctx,
+          tf,
+          tfsec_config):
+    original_tfsec_config = ctx.instance.runtime_properties.get(
+        'tfsec_config') or ctx.node.properties.get('tfsec_config')
+    new_config_tfsec = update_dict_values(
+        original_tfsec_config, tfsec_config)
+    tf.tfsec = TFSec.from_ctx(ctx, new_config_tfsec)
+    tf.check_tfsec()
 
 
 @operation
@@ -149,18 +165,19 @@ def plan(ctx,
                      variables,
                      environment_variables)
 
+    resource_config = utils.get_resource_config()
     if source or source_path:
         tf.root_module = utils.update_terraform_source(source, source_path)
+        resource_config.update(
+            {
+                'source': source or resource_config.get('source'),
+                'source_path': source_path or resource_config.get(
+                    'source_path')
+            }
+        )
     json_result, plain_text_result = _plan(tf)
     ctx.instance.runtime_properties['plan'] = json_result
     ctx.instance.runtime_properties['plain_text_plan'] = plain_text_result
-    resource_config = utils.get_resource_config()
-    resource_config.update(
-        {
-            'source': source,
-            'source_path': source_path
-        }
-    )
     ctx.instance.runtime_properties['resource_config'] = resource_config
     ctx.instance.runtime_properties['previous_tf_state_file'] = \
         utils.get_terraform_state_file(tf.root_module)
