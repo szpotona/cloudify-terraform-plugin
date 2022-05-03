@@ -31,13 +31,23 @@ from .decorators import (
     skip_if_existing)
 from .terraform.tools_base import TFToolException
 from .terraform.tfsec import TFSec
+from .terraform.tflint import TFLint
 
 
 @operation
 @with_terraform
-def tfsec(ctx,
-          tf,
-          tfsec_config):
+def tflint(ctx, tf, tflint_config, **_):
+    original_tflint_config = ctx.instance.runtime_properties.get(
+        'tflint_config') or ctx.node.properties.get('tflint_config')
+    new_config_tflint = update_dict_values(
+        original_tflint_config, tflint_config)
+    tf.tflint = TFLint.from_ctx(ctx, new_config_tflint)
+    tf.check_tflint()
+
+
+@operation
+@with_terraform
+def tfsec(ctx, tf, tfsec_config, **_):
     original_tfsec_config = ctx.instance.runtime_properties.get(
         'tfsec_config') or ctx.node.properties.get('tfsec_config')
     new_config_tfsec = update_dict_values(

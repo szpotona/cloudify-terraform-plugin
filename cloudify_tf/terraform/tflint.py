@@ -189,8 +189,8 @@ class TFLint(TFTool):
         return self.convert_config_to_hcl(self._config_from_props)
 
     @staticmethod
-    def from_ctx(_ctx):
-        tflint_config = get_tflint_config(
+    def from_ctx(_ctx, tflint_config=None):
+        tflint_config = tflint_config or get_tflint_config(
             _ctx.node.properties, _ctx.instance.runtime_properties)
         return TFLint(
             _ctx.logger,
@@ -256,6 +256,7 @@ class TFLint(TFTool):
 
     def execute(self, command, *args, **kwargs):
         process = Popen(command, stdout=PIPE, stderr=STDOUT)
+        self.logger.info('command: {}'.format(command))
         with process.stdout:
             for line in iter(process.stdout.readline, b''):
                 self.logger.error(line.decode('utf-8'))
