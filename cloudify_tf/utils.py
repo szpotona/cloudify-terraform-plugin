@@ -370,25 +370,30 @@ def get_executable_path(target=False):
     Any other value will probably not work for the user.
     """
     instance = get_ctx_instance(target=target)
-    executable_path = instance.runtime_properties.get('executable_path')
-    if not executable_path:
+    initial_executable_path = \
+        instance.runtime_properties.get('executable_path')
+    executable_path = initial_executable_path
+    if not initial_executable_path:
         terraform_config = get_terraform_config(target=target)
-        executable_path = terraform_config.get('executable_path')
-    if not executable_path:
-        executable_path = \
+        executable_path = terraform_config.get('executable_path') or \
             os.path.join(get_node_instance_dir(target=target), 'terraform')
+    if initial_executable_path and \
+            not os.path.exists(initial_executable_path) \
+            and is_using_existing(target=target):
+        # executable path set by relationship precreate operation
+        raise RecoverableError(
+            "If executable_path {} does not exist and there is no "
+            "executable_path in terraform_config there is a need "
+            "to retry and wait for file system to sync.".format(
+                initial_executable_path
+            ))
     if not os.path.exists(executable_path) and \
             is_using_existing(target=target):
         node = get_ctx_node(target=target)
         terraform_config = node.properties.get('terraform_config', {})
-        try:
-            executable_path = terraform_config['executable_path']
-        except KeyError:
-            raise RecoverableError(
-                "If executable_path does not exist and there is no "
-                "executable_path in terraform_config there is a need "
-                "to retry and wait for file system to sync.")
-    instance.runtime_properties['executable_path'] = executable_path
+        executable_path = terraform_config.get('executable_path')
+    if not initial_executable_path:
+        instance.runtime_properties['executable_path'] = executable_path
     return executable_path
 
 

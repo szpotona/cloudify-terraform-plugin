@@ -84,9 +84,6 @@ class TestPlugin(TestBase):
                     "EXEC_PATH": path.join(module_root, "execution"),
                 }
             },
-            "terraform_config": {
-                "executable_path": path.join(module_root, "execution"),
-            }
         }
 
     @patch('cloudify_tf.tasks.get_node_instance_dir',
