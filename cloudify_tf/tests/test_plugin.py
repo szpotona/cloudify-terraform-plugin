@@ -83,6 +83,9 @@ class TestPlugin(TestBase):
                 "environment_variables": {
                     "EXEC_PATH": path.join(module_root, "execution"),
                 }
+            },
+            "terraform_config": {
+                "executable_path": path.join(module_root, "execution"),
             }
         }
 
