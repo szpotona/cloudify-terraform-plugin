@@ -31,7 +31,7 @@ from contextlib import contextmanager
 
 from pathlib import Path
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, RecoverableError
 from cloudify.utils import exception_to_error_cause
 from cloudify_common_sdk.hcl import (
     convert_json_hcl,
@@ -381,7 +381,13 @@ def get_executable_path(target=False):
             is_using_existing(target=target):
         node = get_ctx_node(target=target)
         terraform_config = node.properties.get('terraform_config', {})
-        executable_path = terraform_config.get('executable_path')
+        try:
+            executable_path = terraform_config['executable_path']
+        except KeyError:
+            raise RecoverableError(
+                "If executable_path does not exist and there is no "
+                "executable_path in terraform_config there is a need "
+                "to retry and wait for file system to sync.")
     instance.runtime_properties['executable_path'] = executable_path
     return executable_path
 
