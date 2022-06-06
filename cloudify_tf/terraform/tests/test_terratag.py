@@ -46,7 +46,7 @@ def terratag_params():
         'node_instance_name': 'foo_instance',
         'installation_source': TERRATAG_URL,
         'executable_path': None,
-        'tags': [{'tag1: value1'}],
+        'tags': {'tag1: value1'},
         'flags_override': ['verbose=True', 'rename=False'],
         'env': {},
         'enable': True
@@ -97,5 +97,5 @@ def test_validate(get_deployment_dir_sdk, terratag_params):
         terratag_obj.validate()
     finally:
         shutil.rmtree(deployment_dir)
-    assert terratag_obj.tags == [{'tag1: value1'}]
+    assert terratag_obj.tags == {'tag1: value1'}
     assert terratag_obj.flags == ['-verbose=True', '-rename=False']

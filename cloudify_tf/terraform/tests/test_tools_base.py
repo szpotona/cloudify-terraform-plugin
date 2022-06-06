@@ -222,8 +222,8 @@ def test_download_archive(get_tf_tools_params):
     )
     current_ctx.set(ctx)
 
-    source = 'https://github.com/cloudify-cosmo/cloudify-ui-dashboard/' \
-             'archive/refs/heads/master.zip'
+    source = 'https://github.com/cloudify-community/tf-source/' \
+             'archive/refs/heads/main.zip'
     tool = tools_base.TFTool(*args, **kwargs)
     tool.tool_name = 'test_download_archive'
     test_node_inst_dir = mkdtemp()
@@ -235,4 +235,4 @@ def test_download_archive(get_tf_tools_params):
             test_node_inst_dir,
             executable_file,
             'README.md')
-        assert os.stat(result).st_size == 79
+        assert os.stat(result).st_size == 30

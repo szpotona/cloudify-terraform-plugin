@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   node: cloudify/public-unittest-orb@1 #orb version
-  wagonorb: cloudify/wagon-bulder-orb@1 #orb version
+  wagonorb: cloudify/wagon-bulder-orb@2.2.0 #orb version
   releaseorb: cloudify/release-orb@1 #orb version
   managerorb: cloudify/manager-orb@1
 
@@ -16,6 +16,7 @@ checkout:
       fi
 
 executors:
+
   py36:
     environment:
       PYENV_VERSION: 3.6.5
@@ -24,46 +25,13 @@ executors:
 
   cloudify-machine-py3:
     machine:
-      image: ubuntu-1604:201903-01
+      image: ubuntu-2004:202201-02
 
 commands:
-  create_manager_container_505:
-    steps:
-      - run:
-          name: "Pull Submodules"
-          command: |
-            git submodule update --init --recursive --remote
-      - attach_workspace:
-          at: workspace
-      - run:
-          name: update pip
-          command: pip install -U pip===20.3.3
-      - run:
-          name: install cloudify
-          command: |
-            pip install -r test-requirements.txt
-      - run:
-          name: download manager docker image
-          command: wget http://repository.cloudifysource.org/cloudify/5.0.5/ga-release/cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: load docker image
-          command: docker load -i cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: retain space by dumping the tar
-          command: rm cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: show images
-          command: docker images
-      - run:
-          name: start docker container
-          command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
-      - run:
-          name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
 
   prepare_test_manager:
     steps:
-      - run: ecosystem-test prepare-test-manager -l $TEST_LICENSE -es aws_access_key_id=$aws_access_key_id -es aws_secret_access_key=$aws_secret_access_key --bundle-path workspace/build/cloudify-plugins-bundle-v2.tgz
+      - run: ecosystem-test prepare-test-manager -l $TEST_LICENSE -es aws_access_key_id=$aws_access_key_id -es aws_secret_access_key=$aws_secret_access_key --bundle-path workspace/build/cloudify-plugins-bundle.tgz
 
   run_tf_vm_test:
     steps:

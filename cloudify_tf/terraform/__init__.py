@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import re
 import json
@@ -24,11 +25,11 @@ from .tflint import TFLint
 from .terratag import Terratag
 from contextlib import contextmanager
 from cloudify import exceptions as cfy_exc
-from cloudify_common_sdk.utils import run_subprocess
+from cloudify_common_sdk.cli_tool_base import CliTool
+from cloudify_common_sdk.utils import run_subprocess, update_dict_values
 
 from .. import utils
 
-from cloudify_common_sdk.cli_tool_base import CliTool
 
 CREATE_OP = 'cloudify.interfaces.lifecycle.create'
 
@@ -46,6 +47,7 @@ class Terraform(CliTool):
                  environment_variables=None,
                  backend=None,
                  provider=None,
+                 required_providers=None,
                  provider_upgrade=False,
                  additional_args=None,
                  version=None,
@@ -64,13 +66,17 @@ class Terraform(CliTool):
         super().__init__(logger, deployment_name, node_instance_name)
 
         backend = backend or {}
+        provider = provider or {}
+        required_providers = required_providers or {}
 
+        self.tool_name = 'Terraform'
         self.binary_path = binary_path
         self.plugins_dir = self.set_plugins_dir(plugins_dir)
         self._root_module = root_module
         self.logger = logger
         self.additional_args = additional_args
         self._version = version
+        self._flags = None
         self._flags_override = flags_override or []
         self._log_stdout = log_stdout
         self._tflint = None
@@ -91,6 +97,7 @@ class Terraform(CliTool):
 
         self._env = self.convert_bools_in_env(environment_variables)
         self._backend = backend
+        self._required_providers = required_providers
         self._provider = provider
         self._variables = variables
         self.provider_upgrade = provider_upgrade
@@ -141,6 +148,12 @@ class Terraform(CliTool):
                 self._backend.get('name'), self._backend.get('options', {}))
 
     @property
+    def required_providers(self):
+        if self._required_providers:
+            return utils.create_required_providers_string(
+                self._required_providers.get('required_providers'))
+
+    @property
     def provider(self):
         if self._provider:
             return utils.create_provider_string(
@@ -159,6 +172,44 @@ class Terraform(CliTool):
             return
         return path
 
+    def get_valid_override_flags(self, command_args):
+        def get_cleaned_flags(help_result):
+            cleaned_flags = []
+            # this will get us the options
+            options = help_result[help_result.find('Options:'):]
+            # clear any default value in flag
+            for flag in re.findall(r"\s+-([^ ]+) .*", options):
+                cleaned_flags.append("--{0}".format(flag.partition('=')[0]))
+            return cleaned_flags
+
+        cleaned_flags = []
+        subcommand = command_args[0]
+        help_result = self.execute([self.binary_path, subcommand, '-help'])
+        cleaned_flags = get_cleaned_flags(help_result)
+        # check if it has nested_help options
+        nested_help_text = 'For more information on those options, run:'
+        # get the help command by adding len of nested_help_text
+        help_text_index = help_result.find(nested_help_text)
+        if not cleaned_flags and help_text_index > -1:
+            nested_help = help_result[help_text_index+43:]
+            # replace terraform with correct binary_path
+            help_command = [self.binary_path]
+            help_command.extend(nested_help.split()[1:])
+            help_result = self.execute(help_command)
+            nested_flags = get_cleaned_flags(help_result)
+            for flag in nested_flags:
+                if flag not in cleaned_flags:
+                    cleaned_flags.append(flag)
+        # remove extra - from the formatted_flags and pick the flag
+        # that is part of the supported flags by the command
+        final_flags = [flag[1:] for flag in self.flags
+                       if flag.partition('=')[0] in cleaned_flags]
+        for flag in command_args[1:]:
+            if flag not in final_flags:
+                final_flags.append(flag)
+        final_flags.insert(0, subcommand)
+        return final_flags
+
     def execute(self, command, return_output=None):
         return_output = return_output or self._log_stdout
         return run_subprocess(
@@ -171,13 +222,22 @@ class Terraform(CliTool):
 
     def _tf_command(self, args):
         cmd = [self.binary_path]
-        cmd.extend(args)
-        # TODO: Add flags override.
-        #  But there are some commands, e.g. init that are not relevant.
+        if self.flags:
+            flags = self.get_valid_override_flags(args)
+            cmd.extend(flags)
+        else:
+            cmd.extend(args)
         return cmd
 
     def put_backend(self):
         utils.dump_file(self.backend, self.root_module, 'backend.tf')
+
+    def put_required_providers(self):
+        utils.dump_file(self.required_providers,
+                        self.root_module,
+                        self._required_providers.get(
+                            'filename',
+                            'versions.tf.json'))
 
     def put_provider(self):
         if self.provider:
@@ -445,6 +505,8 @@ class Terraform(CliTool):
         provider_upgrade = utils.get_provider_upgrade()
         general_executor_process = ctx.node.properties.get(
             'general_executor_process')
+        if isinstance(terraform_source, dict):
+            terraform_source = terraform_source.get('location')
         if not os.path.exists(plugins_dir) and utils.is_using_existing():
             utils.mkdir_p(plugins_dir)
         env_variables = resource_config.get('environment_variables')
@@ -458,6 +520,7 @@ class Terraform(CliTool):
             'environment_variables': env_variables or {},
             'backend': resource_config.get('backend'),
             'provider': resource_config.get('provider'),
+            'required_providers': resource_config.get('required_providers'),
             'provider_upgrade': provider_upgrade,
             'additional_args': general_executor_process,
             'version': terraform_version,
@@ -467,7 +530,15 @@ class Terraform(CliTool):
         }
         for k in key_word_args.keys():
             if k in kwargs and kwargs[k]:
-                key_word_args[k] = kwargs[k]
+                if isinstance(kwargs[k], dict):
+                    resolved_kwargs = utils.resolve_dict_intrinsic_vals(
+                        kwargs[k], ctx.deployment.id)
+                    if isinstance(key_word_args[k], dict):
+                        key_word_args[k].update(resolved_kwargs)
+                    else:
+                        key_word_args[k] = kwargs[k]
+                else:
+                    key_word_args[k] = kwargs[k]
 
         tf = Terraform(
                 ctx.logger,
@@ -477,11 +548,12 @@ class Terraform(CliTool):
                 **key_word_args
         )
         tf.put_backend()
+        tf.put_required_providers()
         tf.put_provider()
         if not terraform_version and not skip_tf:
             ctx.instance.runtime_properties['terraform_version'] = \
                 tf.version
-        setup_config_tf(ctx, tf)
+        setup_config_tf(ctx, tf, **kwargs)
         return tf
 
     def check_tflint(self):
@@ -515,30 +587,65 @@ class Terraform(CliTool):
             self.terratag.terratag()
 
 
-def setup_config_tf(ctx, tf):
+def setup_config_tf(ctx,
+                    tf,
+                    tfsec_config=None,
+                    tflint_config=None,
+                    terratag_config=None,
+                    **_):
     if ctx.operation.name != CREATE_OP:
         if tf.terraform_outdated:
             ctx.logger.error(
                 'Your terraform version {} is outdated. '
                 'Please update.'.format(tf.terraform_version))
-    tflint_config = ctx.node.properties.get('tflint_config')
-    if tflint_config:
-        if tflint_config.get('enable', False):
-            tf.tflint = TFLint.from_ctx(_ctx=ctx)
-            ctx.instance.runtime_properties['tflint_config'] = \
-                tf.tflint.export_config()
 
-    tfsec_config = ctx.node.properties.get('tfsec_config', {})
-    if tfsec_config:
-        if tfsec_config.get('enable', False):
-            tf.tfsec = TFSec.from_ctx(_ctx=ctx)
-            ctx.instance.runtime_properties['tfsec_config'] = \
-                tf.tfsec.export_config()
+    #  TFlint
+    tflint_config_from_props = ctx.node.properties.get('tflint_config', {})
+    original_tflint_config = \
+        ctx.instance.runtime_properties.get('tflint_config', {}) or \
+        tflint_config_from_props
+    new_tflint_config = update_dict_values(original_tflint_config,
+                                           tflint_config)
 
-    terratag_config = ctx.node.properties.get('terratag_config')
-    if terratag_config:
-        if terratag_config.get('enable', False):
-            tf.terratag = Terratag.from_ctx(_ctx=ctx)
-            ctx.instance.runtime_properties['terratag_config'] = \
-                tf.terratag.export_config()
-            tf.terratag.validate()
+    if tflint_config or tflint_config_from_props and \
+            tflint_config_from_props.get('enable', False):
+        tf.tflint = TFLint.from_ctx(_ctx=ctx, tflint_config=new_tflint_config)
+        ctx.instance.runtime_properties['tflint_config'] = \
+            tf.tflint.export_config()
+
+    #  TFsec
+    tfsec_config_from_props = ctx.node.properties.get('tfsec_config', {})
+    original_tfsec_config = \
+        ctx.instance.runtime_properties.get('tfsec_config', {}) or \
+        tfsec_config_from_props
+    new_tfsec_config = update_dict_values(original_tfsec_config,
+                                          tfsec_config)
+
+    if tfsec_config or tfsec_config_from_props and \
+            tfsec_config_from_props.get('enable', False):
+        tf.tfsec = TFSec.from_ctx(_ctx=ctx, tfsec_config=new_tfsec_config)
+        ctx.instance.runtime_properties['tfsec_config'] = \
+            tf.tfsec.export_config()
+
+    # Terratag
+    terratag_config_from_props = ctx.node.properties.get('terratag_config', )
+    original_terratag_config = \
+        ctx.instance.runtime_properties.get('terratag_config', {}) or \
+        terratag_config_from_props
+    new_terratag_config = update_dict_values(
+        original_terratag_config, terratag_config)
+
+    try:
+        tags_from_ctx = ctx.deployment.resource_tags
+    except AttributeError:
+        pass
+    else:
+        tags_from_cfg = new_terratag_config.get('tags', {})
+        tags_from_cfg.update(tags_from_ctx)
+        new_terratag_config['tags'] = tags_from_cfg
+
+    if terratag_config or terratag_config_from_props.get('enable', False):
+        tf.terratag = Terratag.from_ctx(_ctx=ctx,
+                                        terratag_config=new_terratag_config)
+        ctx.instance.runtime_properties['terratag_config'] = \
+            tf.terratag.export_config()

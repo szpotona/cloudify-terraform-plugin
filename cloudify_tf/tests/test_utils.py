@@ -127,6 +127,32 @@ class TestUtils(TestBase):
         self.assertEquals(backend_hcl, backend_string)
         self.assertEquals(backed_with_dict_hcl, backend_dict)
 
+    def test_required_providers_string(self):
+        required_providers = {
+            "aws": {
+                "version": "test"
+            },
+            "azure": {
+                "version": "test"
+            }
+        }
+        required_providers_hcl = """{
+    "terraform": {
+        "required_providers": {
+            "aws": {
+                "version": "test"
+            },
+            "azure": {
+                "version": "test"
+            }
+        }
+    }
+}"""
+
+        required_providers_string = \
+            utils.create_required_providers_string(required_providers)
+        self.assertEquals(required_providers_hcl, required_providers_string)
+
     def test_provider_string(self):
         provider = [{
             'name': 'aws',

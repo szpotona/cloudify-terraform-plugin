@@ -17,7 +17,6 @@
 from os import path, remove
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
-from subprocess import Popen, PIPE, STDOUT
 
 from .tools_base import TFTool, TFToolException
 
@@ -189,9 +188,10 @@ class TFLint(TFTool):
         return self.convert_config_to_hcl(self._config_from_props)
 
     @staticmethod
-    def from_ctx(_ctx):
-        tflint_config = get_tflint_config(
+    def from_ctx(_ctx, tflint_config=None):
+        tflint_config = tflint_config or get_tflint_config(
             _ctx.node.properties, _ctx.instance.runtime_properties)
+        _ctx.logger.debug('Using tflint_config {}'.format(tflint_config))
         return TFLint(
             _ctx.logger,
             _ctx.deployment.id,
@@ -254,15 +254,15 @@ class TFLint(TFTool):
             'env': self.env,
         }
 
-    def execute(self, command, *args, **kwargs):
-        process = Popen(command, stdout=PIPE, stderr=STDOUT)
-        with process.stdout:
-            for line in iter(process.stdout.readline, b''):
-                self.logger.error(line.decode('utf-8'))
-        exitcode = process.wait()
-        if exitcode:
+    def execute(self, command, cwd, env, return_output=True, *args, **kwargs):
+        try:
+            self.logger.info('command: {}'.format(command))
+            output = self._execute(
+                command, cwd, env, kwargs, return_output=return_output)
+            self.logger.info('output: {}'.format(output))
+        except Exception:
             raise TFLintException(
-                'TFlint error. See above log for more information. '
+                'TFLint error. See above log for more information. '
                 'If you are working in a development environment, '
                 'you may run the command, '
                 '"{}" from the directory '

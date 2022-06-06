@@ -42,21 +42,22 @@ class Terratag(TFTool):
                  tags=None,
                  flags_override=None,
                  env=None,
-                 enable=False):
+                 enable=False,
+                 terraform_executable=None):
 
         super().__init__(logger, deployment_name, node_instance_name)
         self._installation_source = installation_source
         self.__executable_path = executable_path
-        self._executable_path = None
         self._tags_from_props = tags or {}
         self._tags = {}
-        self._tags_string = None
+        self._tags_string = ''
         self._flags_from_props = flags_override or []
         self._flags = []
         self._env = env or {}
         self._tool_name = 'terratag'
         self._terraform_root_module = None
         self.enable = enable
+        self._terraform_executable = terraform_executable
 
     @property
     def config_property_name(self):
@@ -69,6 +70,14 @@ class Terratag(TFTool):
     @installation_source.setter
     def installation_source(self, value):
         self._installation_source = value
+
+    @property
+    def terraform_executable(self):
+        return self._terraform_executable
+
+    @terraform_executable.setter
+    def terraform_executable(self, value):
+        self._terraform_executable = value
 
     @property
     def executable_path(self):
@@ -192,9 +201,10 @@ class Terratag(TFTool):
                                     .format(message=message))
 
     @staticmethod
-    def from_ctx(_ctx):
-        terratag_config = get_terratag_config(
+    def from_ctx(_ctx, terratag_config=None):
+        terratag_config = terratag_config or get_terratag_config(
             _ctx.node.properties, _ctx.instance.runtime_properties)
+        _ctx.logger.debug('Using terratag_config {}'.format(terratag_config))
         return Terratag(
             _ctx.logger,
             _ctx.deployment.id,

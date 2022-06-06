@@ -142,9 +142,10 @@ class TFSec(TFTool):
         return self._flags
 
     @staticmethod
-    def from_ctx(_ctx):
-        tfsec_config = get_tfsec_config(
+    def from_ctx(_ctx, tfsec_config=None):
+        tfsec_config = tfsec_config or get_tfsec_config(
             _ctx.node.properties, _ctx.instance.runtime_properties)
+        _ctx.logger.debug('Using tfsec_config {}'.format(tfsec_config))
         return TFSec(
             _ctx.logger,
             _ctx.deployment.id,
@@ -191,8 +192,10 @@ class TFSec(TFTool):
 
     def execute(self, command, cwd, env, return_output=True, *args, **kwargs):
         try:
-            self._execute(
+            self.logger.info('command: {}'.format(command))
+            output = self._execute(
                 command, cwd, env, kwargs, return_output=return_output)
+            self.logger.info('output: {}'.format(output))
         except Exception:
             raise TFSecException(
                 'TFsec error. See above log for more information. '

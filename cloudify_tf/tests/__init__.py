@@ -43,4 +43,5 @@ class TestBase(unittest.TestCase):
             else test_runtime_properties,
             deployment_id=test_name
         )
+        ctx.deployment._context['deployment_resource_tags'] = {}
         return ctx

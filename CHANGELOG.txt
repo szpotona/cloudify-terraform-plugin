@@ -1,7 +1,14 @@
+0.18.18:
+ - Add flags override implementation.
+ - Some advance handling of intrinsic function if passed via kwargs to operations.
+ - RD-4607 Improve File System Modules Support.
+ - RD-4726-create-a-workflow-for-tfsec
+ - Add Heal and Update operations
+ - RD-4727-create-workflow-terratag and Some fixes in tflint
 0.18.17: RD-4653-support-tf-vars
 0.18.16:
  - RD-4603 Update Terraform Binary Workflow
- - RD-4693 Add import resource functionality. 
+ - RD-4693 Add import resource functionality.
 0.18.15: RD-4023 Terratag
 0.18.14: RD-4372 Make sure that terraform plan only uses module nodes.
 0.18.13: Fix issue in tflint
