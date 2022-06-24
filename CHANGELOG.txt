@@ -1,3 +1,4 @@
+0.18.19: Remove DSL 1.4 data types.
 0.18.18:
  - Add flags override implementation.
  - Some advance handling of intrinsic function if passed via kwargs to operations.

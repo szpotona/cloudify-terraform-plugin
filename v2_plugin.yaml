@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.18'
+    package_version: '0.18.19'
 
 dsl_definitions:
 
@@ -464,12 +464,12 @@ workflows:
     mapping: tf.cloudify_tf.workflows.refresh_resources
     parameters: &terraform_workflow_params
       node_instance_ids:
-        type: node_instance_ids
+        type: string
         default: []
         description: |
           List of node instance ID's to refresh for.
       node_ids:
-        type: node_ids
+        type: string
         default: []
         description: |
           List of node templates to refresh for.
