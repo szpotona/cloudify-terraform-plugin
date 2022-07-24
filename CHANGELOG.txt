@@ -1,3 +1,6 @@
+0.18.20:
+ - Add Infracost Support
+ - RD-5347 Provide better handling to local archive.
 0.18.19: Remove DSL 1.4 data types.
 0.18.18:
  - Add flags override implementation.

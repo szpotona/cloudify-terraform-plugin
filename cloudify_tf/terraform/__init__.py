@@ -23,6 +23,7 @@ from distutils.version import LooseVersion as parse_version
 from .tfsec import TFSec
 from .tflint import TFLint
 from .terratag import Terratag
+from .infracost import Infracost
 from contextlib import contextmanager
 from cloudify import exceptions as cfy_exc
 from cloudify_common_sdk.cli_tool_base import CliTool
@@ -67,6 +68,7 @@ class Terraform(CliTool):
 
         backend = backend or {}
         provider = provider or {}
+        variables = variables or {}
         required_providers = required_providers or {}
 
         self.tool_name = 'Terraform'
@@ -82,6 +84,7 @@ class Terraform(CliTool):
         self._tflint = None
         self._tfsec = None
         self._terratag = None
+        self._infracost = None
 
         if not isinstance(environment_variables, dict):
             raise Exception(
@@ -119,6 +122,10 @@ class Terraform(CliTool):
         return self._flags
 
     @property
+    def insecure_env(self):
+        return utils.convert_secrets(self._env)
+
+    @property
     def env(self):
         return self._env
 
@@ -129,6 +136,10 @@ class Terraform(CliTool):
             self._env.update(new_value)
         else:
             self._env = new_value
+
+    @property
+    def insecure_variables(self):
+        return utils.convert_secrets(self._variables)
 
     @property
     def variables(self):
@@ -211,12 +222,14 @@ class Terraform(CliTool):
         return final_flags
 
     def execute(self, command, return_output=None):
-        return_output = return_output or self._log_stdout
+        return_output = return_output if return_output is not None \
+            else self._log_stdout
+        self.additional_args['log_stdout'] = return_output
         return run_subprocess(
             command,
             self.logger,
             self.root_module,
-            self.env,
+            self.insecure_env,
             self.additional_args,
             return_output=return_output)
 
@@ -255,7 +268,7 @@ class Terraform(CliTool):
                                              delete=False,
                                              mode="w",
                                              dir=self.root_module) as f:
-                json.dump(self.variables, f)
+                json.dump(self.insecure_variables, f)
                 f.close()
                 command.extend(['-var-file', f.name])
                 yield
@@ -317,6 +330,14 @@ class Terraform(CliTool):
     @terratag.setter
     def terratag(self, value):
         self._terratag = value
+
+    @property
+    def infracost(self):
+        return self._infracost
+
+    @infracost.setter
+    def infracost(self, value):
+        self._infracost = value
 
     @property
     def tfvars(self):
@@ -586,16 +607,27 @@ class Terraform(CliTool):
         with self.runtime_file(commands):
             self.terratag.terratag()
 
+    def run_infracost(self):
+        if not self.infracost:
+            return
+        self.infracost.validate()
+        self.infracost.terraform_root_module = self.root_module
+        if os.path.dirname(self.binary_path) not in os.environ['PATH']:
+            os.environ['PATH'] = '{}:{}'.format(
+                os.environ['PATH'], os.path.dirname(self.binary_path))
+        return self.infracost.infracost()
+
 
 def setup_config_tf(ctx,
                     tf,
                     tfsec_config=None,
                     tflint_config=None,
                     terratag_config=None,
+                    infracost_config=None,
                     **_):
     if ctx.operation.name != CREATE_OP:
         if tf.terraform_outdated:
-            ctx.logger.error(
+            ctx.logger.info(
                 'Your terraform version {} is outdated. '
                 'Please update.'.format(tf.terraform_version))
 
@@ -649,3 +681,14 @@ def setup_config_tf(ctx,
                                         terratag_config=new_terratag_config)
         ctx.instance.runtime_properties['terratag_config'] = \
             tf.terratag.export_config()
+
+    infracost_config_from_props = \
+        ctx.node.properties.get('infracost_config', {})
+    if infracost_config or infracost_config_from_props.get('enable', False):
+        tf.infracost = Infracost.from_ctx(_ctx=ctx,
+                                          infracost_config=infracost_config,
+                                          variables=tf.variables,
+                                          env=tf.env,
+                                          tfvars=tf.tfvars)
+        ctx.instance.runtime_properties['infracost_config'] = \
+            tf.infracost.export_config()

@@ -33,6 +33,7 @@ from .terraform.tools_base import TFToolException
 from .terraform.tfsec import TFSec
 from .terraform.tflint import TFLint
 from .terraform.terratag import Terratag
+from .terraform.infracost import Infracost
 
 
 @operation
@@ -80,6 +81,24 @@ def tfsec(ctx, tf, tfsec_config, **_):
     tf.check_tfsec()
     ctx.instance.runtime_properties['tfsec_config'] = \
         tf.tfsec.export_config()
+
+
+@operation
+@with_terraform
+def infracost(ctx, tf, infracost_config, **_):
+    original_infracost_config = ctx.instance.runtime_properties.get(
+        'infracost_config') or ctx.node.properties.get('infracost_config')
+    new_config_infracost = update_dict_values(
+        original_infracost_config, infracost_config)
+    tf.infracost = Infracost.from_ctx(ctx, new_config_infracost,
+                                      tf.insecure_variables,
+                                      tf.insecure_env,
+                                      tf.tfvars)
+    result, json_result = tf.run_infracost()
+    ctx.instance.runtime_properties['infracost'] = json_result
+    ctx.instance.runtime_properties['plain_text_infracost'] = result
+    ctx.instance.runtime_properties['infracost_config'] = \
+        tf.infracost.export_config()
 
 
 @operation
@@ -186,10 +205,14 @@ def _handle_new_vars(runtime_props,
                      environment_variables=None,
                      update=False):
     if update:
+        resource_config = utils.get_resource_config()
         if variables:
-            runtime_props['resource_config']['variables'] = tf.variables
+            for k, v in variables.items():
+                resource_config['variables'][k] = v
         if environment_variables:
-            runtime_props['resource_config']['environment_variables'] = tf.env
+            for k, v in environment_variables.items():
+                resource_config['environment_variables'][k] = v
+        utils.update_resource_config(resource_config)
 
 
 @operation
@@ -224,7 +247,7 @@ def plan(ctx,
     json_result, plain_text_result = _plan(tf)
     ctx.instance.runtime_properties['plan'] = json_result
     ctx.instance.runtime_properties['plain_text_plan'] = plain_text_result
-    ctx.instance.runtime_properties['resource_config'] = resource_config
+    utils.update_resource_config(resource_config)
     ctx.instance.runtime_properties['previous_tf_state_file'] = \
         utils.get_terraform_state_file(tf.root_module)
 
@@ -316,6 +339,9 @@ def destroy(ctx, tf, **_):
     terratag_config = ctx.node.properties.get('terratag_config')
     if terratag_config.get('enable'):
         tf.terratag.uninstall_binary()
+    infracost_config = ctx.node.properties.get('infracost_config')
+    if infracost_config.get('enable'):
+        tf.infracost.uninstall_binary()
 
 
 def _destroy(tf):
@@ -367,7 +393,7 @@ def _reload_template(ctx,
             'source_path': source_path
         }
     )
-    ctx.instance.runtime_properties['resource_config'] = resource_config
+    utils.update_resource_config(resource_config)
     _state_pull(tf)
     ctx.instance.runtime_properties['previous_tf_state_file'] = \
         utils.get_terraform_state_file(tf.root_module)
@@ -542,7 +568,7 @@ def _import_resource(ctx,
             'source_path': source_path
         }
     )
-    ctx.instance.runtime_properties['resource_config'] = resource_config
+    utils.update_resource_config(resource_config)
     ctx.instance.runtime_properties['previous_tf_state_file'] = \
         utils.get_terraform_state_file(tf.root_module)
     try:

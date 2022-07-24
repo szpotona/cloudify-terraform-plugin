@@ -165,16 +165,6 @@ data_types:
         type: string
         description: file Name .tfvars
         required: false
-      store_output_secrets:
-        type: dict
-        description: |
-          add/update secrets from terraform senstive outputs.
-          should be in this format
-          terraform_output_name: secrets_to_created_or_updated
-        required: false
-      obfuscate_sensitive:
-        type: boolean
-        default: false
 
 
   cloudify.types.terraform.tfsec:
@@ -498,20 +488,28 @@ workflows:
 
   refresh_terraform_resources:
     mapping: tf.cloudify_tf.workflows.refresh_resources
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform.Module']
     parameters: &terraform_workflow_params
       node_instance_ids:
         type: list
+        item_type: node_instance
         default: []
         description: |
           List of node instance ID's to refresh for.
       node_ids:
         type: list
+        item_type: node_id
         default: []
         description: |
           List of node templates to refresh for.
 
   terraform_plan:
     mapping: tf.cloudify_tf.workflows.terraform_plan
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform.Module']
     parameters: &terraform_plan_params
       <<: *terraform_workflow_params
       source:
@@ -529,6 +527,9 @@ workflows:
 
   reload_terraform_template:
     mapping: tf.cloudify_tf.workflows.reload_resources
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform.Module']
     parameters: &terraform_reload_params
       <<: *terraform_plan_params
       destroy_previous:
@@ -541,6 +542,9 @@ workflows:
 
   update_terraform_binary:
     mapping: tf.cloudify_tf.workflows.update_terraform_binary
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform']
     parameters:
       <<: *terraform_workflow_params
       installation_source:
@@ -549,6 +553,9 @@ workflows:
 
   import_terraform_resource:
     mapping: tf.cloudify_tf.workflows.import_resource
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform.Module']
     parameters:
       <<: *terraform_plan_params
       resource_address:
@@ -562,6 +569,9 @@ workflows:
 
   run_infracost:
     mapping: tf.cloudify_tf.workflows.run_infracost
+    availability_rules:
+      node_instances_active: ['all', 'partial']
+      node_types_required: ['cloudify.nodes.terraform.Module']
     parameters:
       <<: *terraform_plan_params
       infracost_config:

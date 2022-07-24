@@ -111,6 +111,33 @@ def import_resource(ctx,
         **kwargs).execute()
 
 
+def run_infracost(ctx,
+                  node_ids,
+                  node_instance_ids,
+                  source,
+                  source_path,
+                  variables,
+                  environment_variables,
+                  infracost_config):
+    kwargs = {}
+    if infracost_config:
+        kwargs['infracost_config'] = infracost_config
+    if source:
+        kwargs['source'] = source
+    if source_path:
+        kwargs['source_path'] = source_path
+    if variables:
+        kwargs['variables'] = variables
+    if environment_variables:
+        kwargs['environment_variables'] = environment_variables
+    _terraform_operation(
+        ctx,
+        "terraform.infracost",
+        node_ids,
+        node_instance_ids,
+        **kwargs).execute()
+
+
 def terraform_plan(ctx,
                    node_ids=None,
                    node_instance_ids=None,

@@ -22,9 +22,11 @@ import shutil
 import zipfile
 import filecmp
 import tempfile
+
 import requests
 import threading
 from io import BytesIO
+from copy import deepcopy
 from textwrap import indent
 from itertools import islice
 from contextlib import contextmanager
@@ -42,8 +44,10 @@ from cloudify_common_sdk.utils import (
     get_ctx_node,
     download_file,
     copy_directory,
+    CommonSDKSecret,
     get_ctx_instance,
     find_rel_by_type,
+    with_rest_client,
     get_cloudify_version,
     get_node_instance_dir,
     unzip_and_set_permissions,
@@ -53,6 +57,10 @@ from cloudify_common_sdk.resource_downloader import unzip_archive
 from cloudify_common_sdk.resource_downloader import untar_archive
 from cloudify_common_sdk.resource_downloader import get_shared_resource
 from cloudify_common_sdk.resource_downloader import TAR_FILE_EXTENSTIONS
+from cloudify_common_sdk.secure_property_management import (
+    store_property,
+    get_stored_property)
+
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
@@ -68,6 +76,16 @@ from .constants import (
     TERRAFORM_STATE_FILE
 )
 from ._compat import text_type, StringIO, mkdir_p
+
+
+def convert_secrets(data):
+    data = deepcopy(data)
+    for k, v in list(data.items()):
+        if isinstance(v, CommonSDKSecret):
+            data[k] = v.secret
+        else:
+            data[k] = v
+    return data
 
 
 def exclude_file(dirname, filename, excluded_files):
@@ -199,23 +217,28 @@ def _file_to_base64(file_path):
 def _create_source_path(source_tmp_path):
     # didn't download anything so check the provided path
     # if file and absolute path or not
+    delete_tmp = False
     if not os.path.isabs(source_tmp_path):
         # bundled and need to be downloaded from blueprint
         source_tmp_path = ctx.download_resource(source_tmp_path)
+        delete_tmp = True
 
+    # only allow delete if we downloaded a bundled archive not local archives
     if os.path.isfile(source_tmp_path):
         file_name = source_tmp_path.rsplit('/', 1)[1]
         file_type = file_name.rsplit('.', 1)[1]
         # check type
         if file_type == 'zip':
             unzipped_source = unzip_archive(source_tmp_path, False)
-            os.remove(source_tmp_path)
+            if delete_tmp:
+                os.remove(source_tmp_path)
             source_tmp_path = unzipped_source
         elif file_type in TAR_FILE_EXTENSTIONS:
             unzipped_source = untar_archive(source_tmp_path, False)
-            os.remove(source_tmp_path)
+            if delete_tmp:
+                os.remove(source_tmp_path)
             source_tmp_path = unzipped_source
-    return source_tmp_path
+    return source_tmp_path, delete_tmp
 
 
 def is_using_existing(target=True):
@@ -251,20 +274,12 @@ def find_terraform_node_from_rel():
 
 
 def update_resource_config(new_values, target=False):
-    instance = get_ctx_instance(target=target)
-    resource_config = get_resource_config(target=target)
-    resource_config.update(new_values)
-    instance.runtime_properties['resource_config'] = resource_config
+    store_property(ctx, 'resource_config', new_values, target)
 
 
 def get_resource_config(target=False):
     """Get the cloudify.nodes.terraform.Module resource_config"""
-    instance = get_ctx_instance(target=target)
-    resource_config = instance.runtime_properties.get('resource_config')
-    if not resource_config or ctx.workflow_id == 'install':
-        node = get_ctx_node(target=target)
-        resource_config = node.properties.get('resource_config', {})
-    return resource_config
+    return get_stored_property(ctx, 'resource_config', target)
 
 
 def get_provider_upgrade(target=False):
@@ -311,10 +326,7 @@ def update_terraform_source_material(new_source, target=False):
     ctx.logger.debug('Source temp path {}'.format(source_tmp_path))
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
-        new_tmp_path = _create_source_path(source_tmp_path)
-        if new_tmp_path == source_tmp_path:
-            delete_tmp = False
-        source_tmp_path = new_tmp_path
+        source_tmp_path, delete_tmp = _create_source_path(source_tmp_path)
     # move tmp files to correct directory
     copy_directory(source_tmp_path, node_instance_dir)
     # By getting here we will have extracted source
@@ -350,7 +362,7 @@ def get_terraform_source_material(target=False):
     if not terraform_source:
         terraform_source = update_terraform_source_material(
             source, target=target)
-    instance.runtime_properties['resource_config'] = resource_config
+    update_resource_config(resource_config)
     return terraform_source
 
 
@@ -750,6 +762,35 @@ def create_provider_string(items):
     return provider
 
 
+def filter_state_for_sensitive_properties(output):
+    resource_config = get_resource_config(target=False)
+    ret = dict()
+    for k in output.keys():
+        is_sensitive_ouput = output[k].get("sensitive", False)
+        obfuscate_sensitive = resource_config.get('obfuscate_sensitive')
+        is_in_store_output_secrets = \
+            k in resource_config.get('store_output_secrets', {})
+        if (is_sensitive_ouput and obfuscate_sensitive) or \
+                (is_sensitive_ouput and is_in_store_output_secrets):
+            ret[k] = "*" * 10
+        else:
+            ret[k] = output[k]
+    return ret
+
+
+@with_rest_client
+def store_sensitive_properties(rest_client, output):
+    resource_config = get_resource_config(target=False)
+    store_output_secrets = resource_config.get("store_output_secrets", {})
+    for output_k in store_output_secrets.keys():
+        output_val = output.get(output_k).get('value')
+        if not isinstance(output_val, str):
+            output_val = json.dumps(output_val)
+        rest_client.secrets.create(key=store_output_secrets[output_k],
+                                   value=output_val,
+                                   update_if_exists=True)
+
+
 def refresh_resources_properties(state, output):
     """Store all the resources (state and output) that we created as JSON
        in the context."""
@@ -762,7 +803,9 @@ def refresh_resources_properties(state, output):
     ctx.instance.runtime_properties['resources'] = resources
     # Duplicate for backward compatibility.
     ctx.instance.runtime_properties[STATE] = resources
-    ctx.instance.runtime_properties['outputs'] = output
+    ctx.instance.runtime_properties['outputs'] = \
+        filter_state_for_sensitive_properties(output)
+    store_sensitive_properties(output=output)
 
 
 def refresh_resources_drifts_properties(plan_json):
