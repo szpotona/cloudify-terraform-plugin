@@ -7,6 +7,7 @@ from tempfile import NamedTemporaryFile
 from cloudify_common_sdk.utils import install_binary
 
 from .tools_base import TFTool, TFToolException
+from ..utils import convert_secrets
 
 
 class Infracost(TFTool):
@@ -183,7 +184,7 @@ class Infracost(TFTool):
                                     delete=False,
                                     mode="w",
                                     dir=self.terraform_root_module) as f:
-                json.dump(self.variables, f)
+                json.dump(convert_secrets(self.variables), f)
                 f.close()
                 yield f.name
             remove(f.name)
@@ -210,7 +211,7 @@ class Infracost(TFTool):
                 'projects': [{
                     'path': self.terraform_root_module,
                     'terraform_var_files': [relative_path],
-                    'env': self.env
+                    'env': convert_secrets(self.env)
                 }]
             }
             with self.config_file() as cf:

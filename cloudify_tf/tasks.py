@@ -91,8 +91,8 @@ def infracost(ctx, tf, infracost_config, **_):
     new_config_infracost = update_dict_values(
         original_infracost_config, infracost_config)
     tf.infracost = Infracost.from_ctx(ctx, new_config_infracost,
-                                      tf.insecure_variables,
-                                      tf.insecure_env,
+                                      tf.variables,
+                                      tf.env,
                                       tf.tfvars)
     result, json_result = tf.run_infracost()
     ctx.instance.runtime_properties['infracost'] = json_result
@@ -125,7 +125,7 @@ def apply(ctx, tf, force=False, **kwargs):
     Execute `terraform apply`.
     """
     if ctx.workflow_id == 'update':
-        resource_config = utils.get_resource_config()
+        resource_config = utils.get_resource_config(force=True)
         source = resource_config.get('source')
         source_path = resource_config.get('source_path')
         _reload_template(ctx,
@@ -199,11 +199,12 @@ def _plan(tf):
             causes=[exception_to_error_cause(ex, tb)])
 
 
-def _handle_new_vars(runtime_props,
-                     tf,
+def _handle_new_vars(runtime_props=None,
+                     tf=None,
                      variables=None,
                      environment_variables=None,
-                     update=False):
+                     update=False,
+                     **_):
     if update:
         resource_config = utils.get_resource_config()
         if variables:
@@ -273,6 +274,15 @@ def check_status(ctx, tf, **_):
 @operation
 @with_terraform
 def check_drift(ctx, tf, **_):
+
+    if ctx.workflow_id == 'update':
+        from_node = utils.get_resource_config(force=True)
+        _handle_new_vars(**from_node)
+        from_inst = utils.get_resource_config(force=False)
+        tf.root_module = utils.update_terraform_source(
+            from_inst.get('source'),
+            from_inst.get('source_path'))
+
     _state_pull(tf)
     if not ctx.instance.runtime_properties.get(IS_DRIFTED, False):
         ctx.logger.info(
@@ -422,6 +432,20 @@ def reload_template(ctx,
                      environment_variables,
                      destroy_previous,
                      force,
+                     **kwargs)
+
+
+@operation
+@with_terraform
+def update(ctx, tf, **kwargs):
+    resource_config = utils.get_resource_config(force=True)
+    source = resource_config.get('source')
+    source_path = resource_config.get('source_path')
+    _reload_template(ctx,
+                     tf,
+                     source,
+                     source_path,
+                     force=True,
                      **kwargs)
 
 

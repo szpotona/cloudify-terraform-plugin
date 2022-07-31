@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.18.20'
+    package_version: '0.19.0'
 
 dsl_definitions:
 
@@ -303,7 +303,7 @@ data_types:
       installation_source:
         type: string
         description: The URL to download the infracost binary from.
-        default: 'https://github.com/infracost/infracost/releases/download/v0.10.3/infracost-linux-amd64.tar.gz'
+        default: 'https://github.com/infracost/infracost/releases/download/v0.10.8/infracost-linux-amd64.tar.gz'
         required: false
       executable_path:
         type: string
@@ -389,7 +389,38 @@ node_types:
           # read from the last location it was loaded from.
           # This can be overridden by specifying the 'source' input.
           implementation: tf.cloudify_tf.tasks.reload_template
-        update: &terraform_reload
+        update:
+          implementation: tf.cloudify_tf.tasks.update
+        check_drift:
+          implementation: tf.cloudify_tf.tasks.check_drift
+      terraform:
+        pull:
+          implementation: tf.cloudify_tf.tasks.state_pull
+        plan:
+          implementation: tf.cloudify_tf.tasks.plan
+          inputs:
+            source:
+              default: { get_property: [SELF, resource_config, source ] }
+            source_path:
+              default: { get_property: [SELF, resource_config, source_path ] }
+            force:
+              default: false
+        tfsec:
+          implementation: tf.cloudify_tf.tasks.tfsec
+          inputs:
+            tfsec_config:
+              default: { get_property: [SELF, tfsec_config ] }
+        tflint:
+          implementation: tf.cloudify_tf.tasks.tflint
+          inputs:
+            tflint_config:
+              default: { get_property: [ SELF, tflint_config ] }
+        terratag:
+          implementation: tf.cloudify_tf.tasks.terratag
+          inputs:
+            terratag_config:
+              default: { get_property: [ SELF, terratag_config ] }
+        reload:
           <<: *terraform_heal
           inputs:
             source:
@@ -417,32 +448,6 @@ node_types:
                 topology before applying the new one.
               type: boolean
               default: false
-        check_drift:
-          implementation: tf.cloudify_tf.tasks.check_drift
-      terraform:
-        pull:
-          implementation: tf.cloudify_tf.tasks.state_pull
-        plan:
-          implementation: tf.cloudify_tf.tasks.plan
-          inputs:
-            source:
-              default: { get_property: [SELF, resource_config, source ] }
-            source_path:
-              default: { get_property: [SELF, resource_config, source_path ] }
-            force:
-              default: false
-        tfsec:
-          implementation: tf.cloudify_tf.tasks.tfsec
-          inputs:
-            tfsec_config:
-              default: { get_property: [SELF, tfsec_config ] }
-        tflint:
-          implementation: tf.cloudify_tf.tasks.tflint
-          inputs:
-            tflint_config:
-              default: { get_property: [ SELF, tflint_config ] }
-        reload:
-          <<: *terraform_reload
         refresh:
           # Refreshes Terraform's state.
           implementation: tf.cloudify_tf.tasks.state_pull

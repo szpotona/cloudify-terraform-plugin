@@ -277,9 +277,9 @@ def update_resource_config(new_values, target=False):
     store_property(ctx, 'resource_config', new_values, target)
 
 
-def get_resource_config(target=False):
+def get_resource_config(target=False, force=None):
     """Get the cloudify.nodes.terraform.Module resource_config"""
-    return get_stored_property(ctx, 'resource_config', target)
+    return get_stored_property(ctx, 'resource_config', target, force)
 
 
 def get_provider_upgrade(target=False):
