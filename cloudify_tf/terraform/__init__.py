@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from cloudify import exceptions as cfy_exc
 from cloudify_common_sdk.cli_tool_base import CliTool
 from cloudify_common_sdk.utils import run_subprocess, update_dict_values
+from cloudify_common_sdk.secure_property_management import get_stored_property
 
 from .. import utils
 
@@ -574,6 +575,29 @@ class Terraform(CliTool):
         if not terraform_version and not skip_tf:
             ctx.instance.runtime_properties['terraform_version'] = \
                 tf.version
+        # handle api_key property in runtime
+        if 'infracost_config' in kwargs:
+            result = ''
+            api_key = \
+                get_stored_property(ctx, 'infracost_config',
+                                    force_node=True).get("api_key", {})
+            infracost_config_from_params = \
+                ctx.workflow_parameters.get('infracost_config', {})
+            api_key_param = ''
+            if isinstance(infracost_config_from_params, dict):
+                api_key_param = infracost_config_from_params.get('api_key')
+            # first check node property
+            if api_key:
+                result = \
+                    utils.resolve_dict_intrinsic_vals(
+                        api_key, ctx.deployment.id)
+            # override that from the workflow parameter
+            if api_key_param:
+                result = \
+                    utils.resolve_dict_intrinsic_vals(
+                        api_key_param, ctx.deployment.id)
+            kwargs['infracost_config']['api_key'] = result
+
         setup_config_tf(ctx, tf, **kwargs)
         return tf
 
@@ -660,7 +684,7 @@ def setup_config_tf(ctx,
             tf.tfsec.export_config()
 
     # Terratag
-    terratag_config_from_props = ctx.node.properties.get('terratag_config', )
+    terratag_config_from_props = ctx.node.properties.get('terratag_config', {})
     original_terratag_config = \
         ctx.instance.runtime_properties.get('terratag_config', {}) or \
         terratag_config_from_props
@@ -682,13 +706,20 @@ def setup_config_tf(ctx,
         ctx.instance.runtime_properties['terratag_config'] = \
             tf.terratag.export_config()
 
+    # infracost
     infracost_config_from_props = \
         ctx.node.properties.get('infracost_config', {})
+    original_infracost_config = \
+        ctx.instance.runtime_properties.get('infracost_config', {}) or \
+        infracost_config_from_props
+    new_infracost_config = update_dict_values(
+        original_infracost_config, infracost_config)
     if infracost_config or infracost_config_from_props.get('enable', False):
-        tf.infracost = Infracost.from_ctx(_ctx=ctx,
-                                          infracost_config=infracost_config,
-                                          variables=tf.variables,
-                                          env=tf.env,
-                                          tfvars=tf.tfvars)
+        tf.infracost = Infracost.from_ctx(
+            _ctx=ctx,
+            infracost_config=new_infracost_config,
+            variables=tf.variables,
+            env=tf.env,
+            tfvars=tf.tfvars)
         ctx.instance.runtime_properties['infracost_config'] = \
             tf.infracost.export_config()

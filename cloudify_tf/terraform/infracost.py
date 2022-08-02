@@ -1,6 +1,7 @@
 import json
 import yaml
 from os import path, remove
+from pathlib import Path
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -205,7 +206,8 @@ class Infracost(TFTool):
         json_result = '{}'
         command = [self.executable_path, 'breakdown', '--config-file']
         with self.runtime_file() as f:
-            relative_path = f.replace(self.terraform_root_module, '')
+            root_path = str(Path(self.terraform_root_module).resolve())
+            relative_path = f.replace(root_path, '')
             self.config = {
                 'version': 0.1,
                 'projects': [{
@@ -217,13 +219,15 @@ class Infracost(TFTool):
             with self.config_file() as cf:
                 command.extend([cf, '--show-skipped', '--no-color'])
                 result = self.execute(command, self.terraform_root_module,
-                                      self.env, return_output=True)
+                                      convert_secrets(self.env),
+                                      return_output=True)
                 # injecting the executable_path because execute pops item 0
                 command.insert(0, self.executable_path)
                 command.remove('--show-skipped')
                 command.extend(['--format json'])
                 json_result = self.execute(command, self.terraform_root_module,
-                                           self.env, return_output=True)
+                                           convert_secrets(self.env),
+                                           return_output=True)
         return result, json.loads(json_result)
 
     def export_config(self):

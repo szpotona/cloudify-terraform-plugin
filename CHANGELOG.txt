@@ -1,3 +1,8 @@
+0.19.1:
+ - Change the infracost_config workflow param to not be required
+ - hide the api_key inside infracost_config runtime_property
+ - handle executable path sent as None
+ - resolve terraform root module as it could have source_path as relative `.`
 0.19.0:
  - Bump Infracost version to bring back tfvars json format support.
  - New update workflow.

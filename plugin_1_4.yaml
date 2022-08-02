@@ -2,7 +2,7 @@ plugins:
   tf:
     executor: central_deployment_agent
     package_name: cloudify-terraform-plugin
-    package_version: '0.19.0'
+    package_version: '0.19.1'
 
 dsl_definitions:
 
@@ -581,8 +581,13 @@ workflows:
       <<: *terraform_plan_params
       infracost_config:
         description: >
-          infracost specific config
+          infracost specific config, the value here could be one of these choices:
+            - `{}`: it will take the values from runtime-properties/properties
+            - default_value: it will check the changes against the runtime-properties/properties
+              if it has override values it will take them
+            Note about enable property it is not considered here as it is enabled by default
         type: cloudify.types.terraform.infracost
+        default: {}
 
 
 blueprint_labels:
