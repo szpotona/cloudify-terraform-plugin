@@ -25,7 +25,8 @@ class TFWorkflowTests(TestCase):
             _relationship={
                 workflows.HIERARCHY: [
                     'cloudify.nodes.Root',
-                    workflows.REL
+                    workflows.REL1,
+                    workflows.REL2
                 ]
             }
         )

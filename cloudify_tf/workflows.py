@@ -20,7 +20,8 @@ TF_TYPE = 'cloudify.nodes.terraform'
 NOT_STARTED = ['uninitialized', 'deleted']
 CREATE = 'cloudify.interfaces.lifecycle.create'
 DELETE = 'cloudify.interfaces.lifecycle.delete'
-REL = 'cloudify.terraform.relationships.run_on_host'
+REL1 = 'cloudify.terraform.relationships.run_on_host'
+REL2 = 'cloudify.relationships.terraform.run_on_host'
 PRECONFIGURE = 'cloudify.interfaces.relationship_lifecycle.preconfigure'
 
 
@@ -204,7 +205,8 @@ def _plan_module_instance(ctx, node, instance, sequence, kwargs):
 
     for rel in instance.relationships:
         if rel.target_node_instance.state in NOT_STARTED:
-            if REL not in rel.relationship._relationship[HIERARCHY]:
+            if REL1 not in rel.relationship._relationship[HIERARCHY] or \
+                    REL2 not in rel.relationship._relationship[HIERARCHY]:
                 ctx.logger.error(
                     'The Terraform plan node {} is related to the '
                     'node instance {}, which is not in a started '

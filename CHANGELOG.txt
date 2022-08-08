@@ -1,3 +1,5 @@
+0.19.2:
+ - deprecate cloudify.terraform.relationships.run_on_host.
 0.19.1:
  - Change the infracost_config workflow param to not be required
  - hide the api_key inside infracost_config runtime_property
