@@ -1,3 +1,5 @@
+0.19.4:
+ - Better handle for get_shared_resource credentials and file resources.
 0.19.3:
  - Rebuild the plugin to bump cloudify_common_sdk version.
 0.19.2:

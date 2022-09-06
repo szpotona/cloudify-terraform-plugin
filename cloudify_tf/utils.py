@@ -319,6 +319,10 @@ def update_terraform_source_material(new_source, target=False):
         new_source_password = new_source.get('password')
         ctx.logger.debug('Getting shared resource: {} to {}'.format(
             new_source_location, node_instance_dir))
+    if isinstance(new_source_username, CommonSDKSecret):
+        new_source_username = new_source_username.secret
+    if isinstance(new_source_password, CommonSDKSecret):
+        new_source_password = new_source_password.secret
     source_tmp_path = get_shared_resource(
         new_source_location, dir=node_instance_dir,
         username=new_source_username,
@@ -327,8 +331,10 @@ def update_terraform_source_material(new_source, target=False):
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
         source_tmp_path, delete_tmp = _create_source_path(source_tmp_path)
-    # move tmp files to correct directory
-    copy_directory(source_tmp_path, node_instance_dir)
+    # move tmp files to correct directory if tmp_path is directory otherwise
+    # the resources will be downloaded inside the node_instance_dir
+    if os.path.isdir(source_tmp_path):
+        copy_directory(source_tmp_path, node_instance_dir)
     # By getting here we will have extracted source
     # Zip the file to store in runtime
     if not v1_gteq_v2(get_cloudify_version(), "6.0.0"):
