@@ -221,6 +221,8 @@ def _create_source_path(source_tmp_path):
     if not os.path.isabs(source_tmp_path):
         # bundled and need to be downloaded from blueprint
         source_tmp_path = ctx.download_resource(source_tmp_path)
+        # the above source_tmp_path would be temp_dir/downloaded_file
+        # so when deleting that let's delete the parent
         delete_tmp = True
 
     # only allow delete if we downloaded a bundled archive not local archives
@@ -231,13 +233,16 @@ def _create_source_path(source_tmp_path):
         if file_type == 'zip':
             unzipped_source = unzip_archive(source_tmp_path, False)
             if delete_tmp:
-                os.remove(source_tmp_path)
+                remove_dir(os.path.dirname(source_tmp_path))
             source_tmp_path = unzipped_source
         elif file_type in TAR_FILE_EXTENSTIONS:
             unzipped_source = untar_archive(source_tmp_path, False)
             if delete_tmp:
-                os.remove(source_tmp_path)
+                remove_dir(os.path.dirname(source_tmp_path))
             source_tmp_path = unzipped_source
+        elif file_type == 'json' and 'tf.json' in file_name:
+            if delete_tmp:
+                source_tmp_path = os.path.dirname(source_tmp_path)
     return source_tmp_path, delete_tmp
 
 
@@ -327,6 +332,7 @@ def update_terraform_source_material(new_source, target=False):
         new_source_location, dir=node_instance_dir,
         username=new_source_username,
         password=new_source_password)
+
     ctx.logger.debug('Source temp path {}'.format(source_tmp_path))
     # check if we actually downloaded something or not
     if source_tmp_path == new_source_location:
@@ -335,12 +341,18 @@ def update_terraform_source_material(new_source, target=False):
     # the resources will be downloaded inside the node_instance_dir
     if os.path.isdir(source_tmp_path):
         copy_directory(source_tmp_path, node_instance_dir)
+
     # By getting here we will have extracted source
     # Zip the file to store in runtime
     if not v1_gteq_v2(get_cloudify_version(), "6.0.0"):
         terraform_source_zip = _zip_archive(source_tmp_path)
         bytes_source = _file_to_base64(terraform_source_zip)
         os.remove(terraform_source_zip)
+        # check if skip_parent_directory was executed
+        # reason for that 4 is because in general /tmp/tmpXXXX/single_folder
+        # so let's take the parent to clean up properly
+        if len(source_tmp_path.split(os.sep)) == 4:
+            source_tmp_path = os.path.dirname(source_tmp_path)
 
         if os.path.abspath(os.path.dirname(source_tmp_path)) != \
                 os.path.abspath(node_instance_dir) and delete_tmp:
@@ -348,6 +360,12 @@ def update_terraform_source_material(new_source, target=False):
 
         return bytes_source
     else:
+        # check if skip_parent_directory was executed
+        # reason for that 4 is because in general /tmp/tmpXXXX/single_folder
+        # so let's take the parent to clean up properly
+        if len(source_tmp_path.split(os.sep)) == 4:
+            source_tmp_path = os.path.dirname(source_tmp_path)
+
         if os.path.abspath(os.path.dirname(source_tmp_path)) != \
                 os.path.abspath(node_instance_dir) and delete_tmp:
             remove_dir(source_tmp_path)
@@ -498,7 +516,10 @@ def create_plugins_dir(plugins_dir=None):
 
 
 def remove_dir(folder, desc=''):
-    if os.path.isdir(folder):
+    if os.path.islink(folder):
+        ctx.logger.debug('Unlinking: {}'.format(folder))
+        os.unlink(folder)
+    elif os.path.isdir(folder):
         if len(folder.split(os.sep)) < 3:
             return
         ctx.logger.debug(
@@ -509,12 +530,10 @@ def remove_dir(folder, desc=''):
             ctx.logger.error(
                 'Unable to safely remove temporary extraction of archive. '
                 'Error: {}'.format(str(e)))
-    elif os.path.islink(folder):
-        ctx.logger.debug('Unlinking: {}'.format(folder))
-        os.unlink(folder)
     elif os.path.isfile(folder):
-        if not remove_dir(folder):
-            os.remove(folder)
+        ctx.logger.debug(
+            'Removing file {dir}'.format(dir=folder))
+        os.remove(folder)
     else:
         ctx.logger.debug(
             'Directory {dir} doesn\'t exist; skipping'.format(dir=folder))
