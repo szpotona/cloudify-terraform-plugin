@@ -169,12 +169,15 @@ class TFSec(TFTool):
                 except Exception:
                     raise
 
-    def tfsec(self):
+    def tfsec(self, command_extension=None):
         with self.configfile() as config_file:
             basic_commands = ['.', '--no-color', '--format', 'json']
 
             if config_file:
                 basic_commands.extend(['--config-file', config_file])
+
+            if command_extension:
+                basic_commands.extend(command_extension)
 
             command = self.merged_args(self.flags, basic_commands)
             command.insert(0, self.executable_path)

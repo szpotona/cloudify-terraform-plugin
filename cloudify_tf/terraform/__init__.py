@@ -617,7 +617,10 @@ class Terraform(CliTool):
         self.tfsec.terraform_root_module = self.root_module
         commands = []
         with self.runtime_file(commands):
-            self.tfsec.tfsec()
+            # injecting another - to make the flag correct
+            if commands:
+                commands[0] = "-{0}".format(commands[0])
+            self.tfsec.tfsec(commands)
 
     def run_terratag(self):
         if not self.terratag:
