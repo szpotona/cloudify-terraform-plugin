@@ -1,4 +1,6 @@
 0.19.8:
+ - Fix the tfvars flag for older tfsec versions
+0.19.8:
  - Pass the variables file to tfsec correctly.
 0.19.7:
  - Bump SDK to fix an issue with get_environment_capability.
