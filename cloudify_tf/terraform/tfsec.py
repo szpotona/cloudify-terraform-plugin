@@ -180,6 +180,8 @@ class TFSec(TFTool):
                 basic_commands.extend(command_extension)
 
             command = self.merged_args(self.flags, basic_commands)
+            var_index = command.index('--var-file')
+            command[var_index] = '--tfvars-file'
             command.insert(0, self.executable_path)
             return self.execute(command, self.terraform_root_module, self.env,
                                 return_output=False)
